@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>靜電實驗 2：接觸起電 (平板觸控版)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+            background-color: #ecf0f1;
+            /* 讓內容盡量垂直置中，但保留捲動彈性 */
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto; /* 內容多時自動出現卷軸 */
+            /* 禁止選取文字，提升操作體驗 */
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none; /* 防止瀏覽器預設觸控行為 */
+        }
+
+        #main-layout {
+            display: flex;
+            gap: 12px; 
+            padding: 15px; 
+            background-color: #fff;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            max-width: 1200px;
+            width: 95%;
+            min-width: 1000px; 
+        }
+
+        #left-panel {
+            flex: 0 0 860px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px; 
+        }
+
+        #ui-container {
+            display: flex;
+            gap: 10px;
+            height: 36px; 
+            align-items: center;
+        }
+
+        #canvas-wrapper {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #bdc3c7;
+            background-color: #f9f9f9;
+        }
+        
+        canvas { display: block; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+
+        #right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fdfefe;
+            border-left: 2px solid #eee;
+            padding-left: 15px;
+            padding-right: 5px;
+            min-width: 200px;
+        }
+
+        .guide-box {
+            background-color: #fcf3cf;
+            border-left: 5px solid #f1c40f;
+            padding: 12px; 
+            border-radius: 5px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+        
+        .guide-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #d35400;
+            margin-bottom: 8px;
+        }
+
+        .guide-content {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #34495e;
+        }
+
+        .status-box {
+            background-color: #e8f8f5;
+            border: 1px solid #a2d9ce;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: auto;
+        }
+
+        button {
+            padding: 5px 12px;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        button:hover { background-color: #2980b9; transform: translateY(-1px); }
+        button.active { background-color: #2c3e50; border: 2px solid #34495e; }
+    </style>
+</head>
+<body>
+
+<div id="main-layout">
+    <div id="left-panel">
+        <div id="ui-container">
+            <button id="btn-plastic" class="mat-btn active" onclick="setRodType('plastic')">1. 負電金屬棒 (-)</button>
+            <button id="btn-glass" class="mat-btn" onclick="setRodType('glass')">2. 正電金屬棒 (+)</button>
+            <button id="btn-reset" onclick="resetExperiment()" style="background-color:#95a5a6; margin-left:auto;">重置實驗</button>
+        </div>
+        <div id="canvas-wrapper">
+            <canvas id="simCanvas" width="860" height="450"></canvas>
+        </div>
+    </div>
+
+    <div id="right-panel">
+        <div class="guide-box" id="guide-box">
+            <div class="guide-title" id="guide-title">步驟 1：準備接觸</div>
+            <div class="guide-content" id="guide-content">
+                請拖曳帶電棒<b>接觸</b>金屬球。<br><br>
+                <b>觀察重點：</b><br>
+                1. 顯示數字代表即時電荷量。<br>
+                2. 接觸後，電荷會流動並重新分配。<br>
+                3. 分開後，剩餘電荷會互斥並分佈於物體表面(或邊緣)。
+            </div>
+        </div>
+
+        <div class="status-box">
+            <div style="font-weight:bold; color:#16a085; margin-bottom:5px;">實驗狀態</div>
+            <div>請觀察物體旁的數值變化與電荷移動。</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- 全域變數 ---
+var canvas, ctx;
+var rodType = 'plastic'; 
+var draggingObj = null;
+var dragOffset = {x: 0, y: 0};
+var mousePos = {x:0, y:0};
+
+var rod = { x: 80, y: 110, w: 220, h: 50, name: '負電金屬棒', draggable: true };
+var sphere = { x: 550, y: 110, r: 90, name: '金屬球', draggable: false }; 
+var particles = [];
+
+// 常數
+var PARTICLE_RADIUS = 8;
+var SPHERE_RADIUS = 90;
+var TRANSFER_RATE = 8; 
+var transferTimer = 0;
+var hasTouched = false;
+var INDUCTION_DIST = 250; 
+var PAIR_OFFSET_X = 7; 
+var PAIR_OFFSET_Y = 7;
+
+// --- 粒子類別 ---
+class Particle {
+    constructor(x, y, charge, parent, isFixed = false, isNeutralPair = false) {
+        this.charge = charge; 
+        this.parent = parent; 
+        this.isFixed = isFixed; 
+        this.isNeutralPair = isNeutralPair; 
+        
+        this.baseX = x; 
+        this.baseY = y; 
+        
+        if (parent === 'rod') {
+            this.currentX = rod.x + x;
+            this.currentY = rod.y + y;
+            this.baseTargetX = x; 
+            this.baseTargetY = y;
+        } else {
+            this.currentX = sphere.x + x;
+            this.currentY = sphere.y + y;
+            this.baseTargetX = x;
+            this.baseTargetY = y;
+        }
+        
+        this.isTransferring = false; 
+        this.transferTargetX = 0; 
+        this.transferTargetY = 0;
+    }
+
+    update() {
+        if (this.isTransferring) {
+            let dx = this.transferTargetX - this.currentX;
+            let dy = this.transferTargetY - this.currentY;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 5) {
+                this.isTransferring = false;
+                if (this.parent === 'rod_transit') {
+                    this.parent = 'rod';
+                    this.baseX = this.currentX - rod.x;
+                    this.baseY = this.currentY - rod.y;
+                    this.isNeutralPair = false; 
+                } else if (this.parent === 'sphere_transit') {
+                    this.parent = 'sphere';
+                    this.baseX = this.currentX - sphere.x;
+                    this.baseY = this.currentY - sphere.y;
+                    this.isNeutralPair = false;
+                }
+            } else {
+                this.currentX += dx * 0.2;
+                this.currentY += dy * 0.2;
+            }
+        } 
+        else {
+            let absTargetX, absTargetY;
+            
+            if (this.parent === 'rod') {
+                absTargetX = rod.x + this.baseTargetX;
+                absTargetY = rod.y + this.baseTargetY;
+            } else { // sphere
+                absTargetX = sphere.x + this.baseTargetX;
+                absTargetY = sphere.y + this.baseTargetY;
+            }
+
+            let dx = absTargetX - this.currentX;
+            let dy = absTargetY - this.currentY;
+            
+            this.currentX += dx * 0.15;
+            this.currentY += dy * 0.15;
+            
+            if (!this.isFixed && Math.abs(dx) < 2) {
+                this.currentX += (Math.random() - 0.5) * 0.5;
+                this.currentY += (Math.random() - 0.5) * 0.5;
+            }
+        }
+    }
+
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.currentX, this.currentY, PARTICLE_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = (this.charge > 0) ? '#e74c3c' : '#3498db'; 
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(this.charge > 0 ? '+' : '-', this.currentX, this.currentY + 1);
+    }
+}
+
+// --- 物理計算 ---
+
+function calculateSpherePhysics() {
+    let electrons = particles.filter(p => p.parent === 'sphere' && p.charge === -1 && !p.isTransferring);
+    let protons = particles.filter(p => p.parent === 'sphere' && p.charge === 1);
+    
+    let rodCx = rod.x + rod.w / 2;
+    let rodCy = rod.y + rod.h / 2;
+    let dx = rodCx - sphere.x;
+    let dy = rodCy - sphere.y;
+    let distToCenter = Math.sqrt(dx*dx + dy*dy);
+    let surfaceDist = distToCenter - (rod.w/2 + SPHERE_RADIUS); 
+    
+    let influence = 0;
+    if (surfaceDist < INDUCTION_DIST) {
+        influence = 1 - Math.max(0, surfaceDist / INDUCTION_DIST);
+    }
+    
+    let rodNet = getNetCharge('rod');
+    let rodChargeSign = (rodNet < 0) ? -1 : 1; 
+    let angleToRod = Math.atan2(dy, dx);
+
+    let seats = protons.map(p => {
+        return {
+            x: p.baseX,
+            y: p.baseY,
+            distSq: p.baseX**2 + p.baseY**2,
+            filled: false
+        };
+    });
+    seats.sort((a, b) => a.distSq - b.distSq); 
+
+    let availableElectrons = [...electrons];
+    let excessElectrons = [];
+
+    seats.forEach(seat => {
+        if (availableElectrons.length > 0) {
+            let bestIdx = -1; 
+            let minDist = Infinity;
+            for(let i=0; i<availableElectrons.length; i++) {
+                let e = availableElectrons[i];
+                let d = (e.baseX - seat.x)**2 + (e.baseY - seat.y)**2;
+                if(d < minDist) { minDist = d; bestIdx = i; }
+            }
+
+            if(bestIdx !== -1) {
+                let ele = availableElectrons[bestIdx];
+                ele.baseTargetX = seat.x + PAIR_OFFSET_X;
+                ele.baseTargetY = seat.y + PAIR_OFFSET_Y;
+                availableElectrons.splice(bestIdx, 1);
+                seat.filled = true;
+            }
+        }
+    });
+
+    excessElectrons = availableElectrons;
+    if (excessElectrons.length > 0) {
+        let surfaceRadius = SPHERE_RADIUS - 6;
+        let count = excessElectrons.length;
+        excessElectrons.sort((a,b) => Math.atan2(a.baseY, a.baseX) - Math.atan2(b.baseY, b.baseX));
+        
+        excessElectrons.forEach((ele, i) => {
+            let angle = (i / count) * Math.PI * 2;
+            ele.baseTargetX = Math.cos(angle) * surfaceRadius;
+            ele.baseTargetY = Math.sin(angle) * surfaceRadius;
+        });
+    }
+
+    if (influence > 0.05 && Math.abs(rodNet) > 0) {
+        let shiftAmount = 35 * influence * influence;
+        let forceAngle = angleToRod;
+        if (rodChargeSign === -1) forceAngle += Math.PI; 
+
+        let shiftX = Math.cos(forceAngle) * shiftAmount;
+        let shiftY = Math.sin(forceAngle) * shiftAmount;
+
+        electrons.forEach(ele => {
+            let finalX = ele.baseTargetX + shiftX;
+            let finalY = ele.baseTargetY + shiftY;
+            
+            let d = Math.sqrt(finalX*finalX + finalY*finalY);
+            if (d > SPHERE_RADIUS - 5) {
+                let ang = Math.atan2(finalY, finalX);
+                finalX = Math.cos(ang) * (SPHERE_RADIUS - 5);
+                finalY = Math.sin(ang) * (SPHERE_RADIUS - 5);
+            }
+            ele.baseTargetX = finalX;
+            ele.baseTargetY = finalY;
+        });
+    }
+}
+
+function calculateRodPhysics() {
+    let rodParticles = particles.filter(p => p.parent === 'rod' && !p.isTransferring);
+    
+    if (rodType === 'plastic') {
+        let excessParticles = rodParticles.filter(p => !p.isNeutralPair); 
+        
+        if (excessParticles.length > 0) {
+            let margin = 10;
+            let w = rod.w - 2 * margin;
+            let h = rod.h - 2 * margin;
+            let perimeter = 2 * (w + h);
+            let step = perimeter / excessParticles.length;
+            
+            excessParticles.sort((a,b) => a.baseX - b.baseX); 
+
+            excessParticles.forEach((p, i) => {
+                let pos = i * step;
+                let tx, ty;
+                if (pos < w) { tx = margin + pos; ty = margin; }
+                else if (pos < w + h) { tx = margin + w; ty = margin + (pos - w); }
+                else if (pos < 2 * w + h) { tx = margin + w - (pos - (w + h)); ty = margin + h; }
+                else { tx = margin; ty = margin + h - (pos - (2 * w + h)); }
+                p.baseTargetX = tx; p.baseTargetY = ty;
+            });
+        }
+    } 
+    else if (rodType === 'glass') {
+        let protons = rodParticles.filter(p => p.charge === 1);
+        let electrons = rodParticles.filter(p => p.charge === -1);
+
+        let availableProtons = [...protons];
+        let cx = rod.w / 2;
+        let cy = rod.h / 2;
+        availableProtons.sort((a, b) => {
+            let da = (a.baseX - cx)**2 + (a.baseY - cy)**2;
+            let db = (b.baseX - cx)**2 + (b.baseY - cy)**2;
+            return da - db;
+        });
+
+        electrons.forEach(ele => {
+            if (availableProtons.length > 0) {
+                let targetProton = availableProtons[0];
+                ele.baseTargetX = targetProton.baseX + PAIR_OFFSET_X;
+                ele.baseTargetY = targetProton.baseY + PAIR_OFFSET_Y;
+                availableProtons.shift(); 
+            } else {
+                ele.baseTargetX = Math.random() * rod.w;
+                ele.baseTargetY = Math.random() * rod.h; 
+            }
+        });
+    }
+}
+
+function handleContact() {
+    let closestX = Math.max(rod.x, Math.min(sphere.x, rod.x + rod.w));
+    let closestY = Math.max(rod.y, Math.min(sphere.y, rod.y + rod.h));
+    let dist = Math.sqrt((sphere.x - closestX)**2 + (sphere.y - closestY)**2);
+    let isTouching = dist <= SPHERE_RADIUS + 5.0;
+
+    if (isTouching) {
+        hasTouched = true;
+        transferTimer++;
+        if (transferTimer > TRANSFER_RATE) {
+            transferTimer = 0;
+            performTransfer(closestX, closestY);
+        }
+    } else {
+        transferTimer = 0;
+    }
+}
+
+function performTransfer(contactX, contactY) {
+    let sNet = getNetCharge('sphere');
+    let rNet = getNetCharge('rod');
+    let totalNet = sNet + rNet;
+    let targetCharge = Math.round(totalNet / 2); 
+
+    if (rodType === 'plastic') {
+        if (rNet < targetCharge) { 
+            let candidates = particles.filter(p => p.parent === 'rod' && p.charge === -1 && !p.isNeutralPair && !p.isTransferring);
+            
+            if (candidates.length > 0) {
+                candidates.sort((a,b) => {
+                    let da = (a.currentX - contactX)**2 + (a.currentY - contactY)**2;
+                    let db = (b.currentX - contactX)**2 + (b.currentY - contactY)**2;
+                    return da - db;
+                });
+                
+                let p = candidates[0];
+                p.parent = 'sphere_transit'; 
+                p.isTransferring = true;
+                let angle = Math.atan2(contactY - sphere.y, contactX - sphere.x);
+                p.transferTargetX = sphere.x + Math.cos(angle) * (SPHERE_RADIUS - 10);
+                p.transferTargetY = sphere.y + Math.sin(angle) * (SPHERE_RADIUS - 10);
+            }
+        }
+    } 
+    else {
+        if (sNet < targetCharge) { 
+            let candidates = particles.filter(p => p.parent === 'sphere' && p.charge === -1 && !p.isTransferring);
+            
+            if (candidates.length > 0) {
+                candidates.sort((a,b) => {
+                    let da = (a.currentX - contactX)**2 + (a.currentY - contactY)**2;
+                    let db = (b.currentX - contactX)**2 + (b.currentY - contactY)**2;
+                    return da - db;
+                });
+
+                let p = candidates[0];
+                p.parent = 'rod_transit';
+                p.isTransferring = true;
+                
+                let dx = rod.x + rod.w/2 - contactX;
+                let dy = rod.y + rod.h/2 - contactY;
+                let len = Math.sqrt(dx*dx + dy*dy);
+                p.transferTargetX = contactX + (dx/len) * 50; 
+                p.transferTargetY = contactY + (dy/len) * 50;
+            }
+        }
+    }
+}
+
+
+function init() {
+    canvas = document.getElementById('simCanvas');
+    ctx = canvas.getContext('2d');
+    setRodType('plastic'); 
+    
+    // 滑鼠事件
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    // 觸控事件 (支援 iPad/手機) - 加上 passive: false 才能使用 preventDefault
+    canvas.addEventListener('touchstart', onTouchStart, {passive: false});
+    canvas.addEventListener('touchmove', onTouchMove, {passive: false});
+    window.addEventListener('touchend', onTouchEnd);
+
+    requestAnimationFrame(update);
+}
+
+function setRodType(type) {
+    rodType = type;
+    document.querySelectorAll('.mat-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(type === 'glass' ? 'btn-glass' : 'btn-plastic').classList.add('active');
+    rod.name = (type === 'glass') ? '正電金屬棒' : '負電金屬棒';
+    resetParticles();
+    updateGuide();
+}
+
+function resetParticles() {
+    particles = [];
+    hasTouched = false;
+    rod.x = 80; rod.y = 110; 
+
+    // 1. 棒子電荷 
+    if (rodType === 'plastic') {
+        let excessCount = 10;
+        let margin = 10;
+        let w = rod.w - 2 * margin;
+        let h = rod.h - 2 * margin;
+        let perimeter = 2 * (w + h);
+        let step = perimeter / excessCount;
+
+        for(let i=0; i<excessCount; i++) {
+            let pos = i * step;
+            let tx, ty;
+            if (pos < w) { tx = margin + pos; ty = margin; } 
+            else if (pos < w + h) { tx = margin + w; ty = margin + (pos - w); } 
+            else if (pos < 2 * w + h) { tx = margin + w - (pos - (w + h)); ty = margin + h; } 
+            else { tx = margin; ty = margin + h - (pos - (2 * w + h)); }
+            particles.push(new Particle(tx, ty, -1, 'rod', true, false));
+        }
+    } else {
+        let rows = 2;
+        let cols = 5;
+        let startX = rod.w * 0.15;
+        let stepX = (rod.w * 0.7) / (cols - 1);
+        let startY = rod.h * 0.35;
+        let stepY = rod.h * 0.3;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let px = startX + c * stepX;
+                let py = startY + r * stepY;
+                particles.push(new Particle(px, py, 1, 'rod', true, false));
+            }
+        }
+    }
+
+    // 2. 金屬球生成固定 16 對
+    let layers = [1, 5, 10];
+    let radii = [0, 35, 65];
+    
+    for (let l = 0; l < layers.length; l++) {
+        let count = layers[l];
+        let r = radii[l];
+        for (let i = 0; i < count; i++) {
+            let angle = (i / count) * Math.PI * 2;
+            let x = Math.cos(angle) * r;
+            let y = Math.sin(angle) * r;
+            
+            particles.push(new Particle(x, y, 1, 'sphere', true));
+            particles.push(new Particle(x + PAIR_OFFSET_X, y + PAIR_OFFSET_Y, -1, 'sphere', false));
+        }
+    }
+}
+
+function resetExperiment() { setRodType(rodType); }
+
+function getNetCharge(obj) {
+    return particles.reduce((acc, p) => {
+        if (obj === 'rod') {
+            if (p.parent === 'rod' || p.parent === 'rod_transit') return acc + p.charge;
+        } else if (obj === 'sphere') {
+            if (p.parent === 'sphere' || p.parent === 'sphere_transit') return acc + p.charge;
+        }
+        return acc;
+    }, 0);
+}
+
+function drawLabel(ctx, text, x, y, netCharge) {
+    ctx.save();
+    ctx.font = "bold 24px Arial"; 
+    ctx.textAlign = "center";
+    
+    if (netCharge > 0) ctx.fillStyle = "#e74c3c"; 
+    else if (netCharge < 0) ctx.fillStyle = "#3498db"; 
+    else ctx.fillStyle = "#27ae60"; 
+    
+    let sign = (netCharge > 0) ? "+" : "";
+    let displayText = `${text} (${sign}${netCharge})`;
+    
+    ctx.fillText(displayText, x, y);
+    ctx.restore();
+}
+
+function updateGuide() {
+    const title = document.getElementById('guide-title');
+    const content = document.getElementById('guide-content');
+    const box = document.getElementById('guide-box');
+    let sNet = getNetCharge('sphere');
+    let rNet = getNetCharge('rod');
+
+    if (!hasTouched && sNet === 0) {
+        title.innerText = "步驟 1：準備接觸";
+        content.innerHTML = `目前的棒子是 <b>${rod.name}</b>。<br>棒子淨電荷：<b>${rNet > 0 ? '+'+rNet : rNet}</b>。<br>請拖曳棒子碰觸金屬球。`;
+        box.style.borderLeftColor = "#f1c40f"; box.style.backgroundColor = "#fcf3cf";
+    } else if (hasTouched) {
+        title.innerText = "實驗結果：接觸起電";
+        content.innerHTML = `電荷重新分配完成。<br><b>棒子電荷：${rNet > 0 ? '+'+rNet : rNet}</b><br><b>金屬球電荷：${sNet > 0 ? '+'+sNet : sNet}</b><br>兩者帶同性電，且電荷均勻分佈。`;
+        box.style.borderLeftColor = "#3498db"; box.style.backgroundColor = "#ebf5fb";
+    }
+}
+
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.strokeStyle = '#ecf0f1'; ctx.lineWidth = 1;
+    for(let i=0; i<canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+    for(let i=0; i<canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+
+    handleContact();
+    calculateSpherePhysics();
+    calculateRodPhysics();
+
+    let sNet = getNetCharge('sphere');
+    let rNet = getNetCharge('rod');
+
+    // 繪製球
+    ctx.beginPath(); ctx.arc(sphere.x, sphere.y, sphere.r, 0, Math.PI*2);
+    let gradSphere = ctx.createRadialGradient(sphere.x-30, sphere.y-30, 10, sphere.x, sphere.y, sphere.r);
+    gradSphere.addColorStop(0, '#f1c40f'); gradSphere.addColorStop(1, '#f39c12');
+    ctx.fillStyle = gradSphere; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#e67e22'; ctx.stroke();
+    
+    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(sphere.x - 5, sphere.y + sphere.r, 10, 150);
+    ctx.fillStyle = '#95a5a6'; ctx.fillRect(sphere.x - 30, sphere.y + sphere.r + 150, 60, 10);
+    
+    drawLabel(ctx, "金屬球", sphere.x, sphere.y + sphere.r + 175, sNet);
+
+    // 繪製棒子
+    ctx.save();
+    let gradRod = ctx.createLinearGradient(rod.x, 0, rod.x + rod.w, 0);
+    if (rodType === 'glass') { gradRod.addColorStop(0, 'rgba(230, 245, 255, 0.9)'); gradRod.addColorStop(1, 'rgba(200, 230, 255, 0.9)'); } 
+    else { gradRod.addColorStop(0, '#7f8c8d'); gradRod.addColorStop(1, '#2c3e50'); }
+    ctx.fillStyle = gradRod; ctx.strokeStyle = '#999'; ctx.lineWidth = 2;
+    roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 15, true, true);
+    
+    drawLabel(ctx, rod.name, rod.x + rod.w/2, rod.y - 30, rNet);
+    ctx.restore();
+
+    particles.forEach(p => { p.update(); p.draw(); });
+
+    updateGuide(); 
+    
+    if (rod.draggable && mousePos.x > rod.x && mousePos.x < rod.x+rod.w && mousePos.y > rod.y && mousePos.y < rod.y+rod.h) {
+        canvas.style.cursor = 'pointer';
+    } else {
+        canvas.style.cursor = 'default';
+    }
+    requestAnimationFrame(update);
+}
+
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+    ctx.beginPath(); ctx.moveTo(x + radius, y); ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius); ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height); ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius); ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y); ctx.closePath();
+    if (stroke) ctx.stroke(); if (fill) ctx.fill();
+}
+
+// --- 滑鼠事件處理 ---
+function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect(); 
+    const mx = e.clientX - rect.left; 
+    const my = e.clientY - rect.top;
+    if (rod.draggable && mx > rod.x && mx < rod.x + rod.w && my > rod.y && my < rod.y + rod.h) {
+        draggingObj = rod; dragOffset.x = mx - rod.x; dragOffset.y = my - rod.y;
+    }
+}
+
+function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect(); 
+    mousePos.x = e.clientX - rect.left; 
+    mousePos.y = e.clientY - rect.top;
+
+    if (!draggingObj) return;
+    moveLogic(mousePos.x, mousePos.y);
+}
+
+function onMouseUp() { draggingObj = null; }
+
+// --- 觸控事件處理 (iPad/手機) ---
+function onTouchStart(e) {
+    if(e.touches.length == 1){
+        // 防止瀏覽器捲動
+        e.preventDefault(); 
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const mx = touch.clientX - rect.left;
+        const my = touch.clientY - rect.top;
+
+        if (rod.draggable && mx > rod.x && mx < rod.x + rod.w && my > rod.y && my < rod.y + rod.h) {
+            draggingObj = rod;
+            dragOffset.x = mx - rod.x;
+            dragOffset.y = my - rod.y;
+        }
+    }
+}
+
+function onTouchMove(e) {
+    if(e.touches.length == 1){
+        e.preventDefault(); // 防止拖曳時整個畫面移動
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const mx = touch.clientX - rect.left;
+        const my = touch.clientY - rect.top;
+        
+        // 更新全域滑鼠位置 (讓 hover 效果也能運作)
+        mousePos.x = mx; 
+        mousePos.y = my;
+
+        if (!draggingObj) return;
+        moveLogic(mx, my);
+    }
+}
+
+function onTouchEnd(e) {
+    draggingObj = null;
+}
+
+// --- 共用移動邏輯 ---
+function moveLogic(targetX, targetY) {
+    if (draggingObj === rod) {
+        let desiredX = targetX - dragOffset.x;
+        let desiredY = targetY - dragOffset.y;
+        
+        if(desiredX < 0) desiredX = 0;
+        if(desiredY < 0) desiredY = 0;
+        if(desiredY > canvas.height - rod.h) desiredY = canvas.height - rod.h;
+
+        let maxRightX = sphere.x - SPHERE_RADIUS + 5; 
+        if (desiredX + rod.w > maxRightX) {
+            desiredX = maxRightX - rod.w;
+        }
+
+        let deltaX = desiredX - rod.x;
+        let deltaY = desiredY - rod.y;
+
+        rod.x = desiredX;
+        rod.y = desiredY;
+
+        particles.forEach(p => {
+            if (p.parent === 'rod' && !p.isTransferring) {
+                p.currentX += deltaX;
+                p.currentY += deltaY;
+            }
+        });
+    }
+}
+
+window.onload = function() {
+    init();
+};
+
+</script>
+</body>
+</html>
