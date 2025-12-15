@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>靜電學互動實驗室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none; /* 防止在 iPad 上拖曳時捲動頁面 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            overflow: hidden;
+        }
+        canvas {
+            touch-action: none;
+            background: radial-gradient(circle, #ffffff 0%, #e2e8f0 100%);
+            border-radius: 1rem;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+        }
+        .btn {
+            transition: all 0.2s;
+            active: scale-95;
+        }
+        /* 簡單的電荷動畫 */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col">
+
+    <!-- 導航列 -->
+    <nav class="bg-slate-800 text-white p-3 flex justify-between items-center shadow-md z-10 shrink-0">
+        <div class="flex items-center gap-2">
+            <span class="text-xl font-bold text-yellow-400">⚡ 靜電實驗室</span>
+        </div>
+        <div class="flex bg-slate-700 rounded-lg p-1">
+            <button id="tab-electroscope" onclick="switchTab('electroscope')" class="px-4 py-2 rounded-md bg-blue-500 text-white font-medium transition-colors">驗電器實驗</button>
+            <button id="tab-spheres" onclick="switchTab('spheres')" class="px-4 py-2 rounded-md text-slate-300 hover:text-white font-medium transition-colors">金屬球實驗</button>
+        </div>
+        <div class="text-xs text-slate-400 hidden sm:block">拖曳帶電體進行實驗</div>
+    </nav>
+
+    <!-- 主內容區 -->
+    <div class="flex-1 relative flex justify-center items-center p-4 overflow-hidden">
+        
+        <!-- Canvas -->
+        <canvas id="simCanvas" class="w-full h-full max-w-4xl max-h-[80vh] border border-slate-300"></canvas>
+
+        <!-- 控制面板 (浮動) -->
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-xl border border-slate-200 flex gap-4 items-center" id="controls">
+            <div id="electroscope-controls" class="flex gap-3">
+                <button onclick="resetElectroscope()" class="btn bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold border-b-4 border-slate-300 active:border-b-0 active:translate-y-1">
+                    ↺ 重置實驗
+                </button>
+                <button onclick="groundElectroscope()" class="btn bg-green-500 text-white px-4 py-2 rounded-lg font-bold border-b-4 border-green-700 active:border-b-0 active:translate-y-1 flex items-center gap-2">
+                    <span>✋</span> 手指接地
+                </button>
+            </div>
+            <div id="spheres-controls" class="hidden gap-3">
+                <button onclick="resetSpheres()" class="btn bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold border-b-4 border-slate-300 active:border-b-0 active:translate-y-1">
+                    ↺ 重置實驗
+                </button>
+                <div class="text-sm text-slate-500 flex items-center px-2">
+                    <span class="mr-2">💡</span> 把棒子靠近小球
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示文字 -->
+        <div id="instruction-toast" class="absolute top-4 bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full text-sm font-semibold shadow-md pointer-events-none opacity-80 transition-opacity duration-500">
+            試著拖曳玻璃棒靠近金屬盤...
+        </div>
+    </div>
+
+<script>
+/**
+ * 靜電實驗模擬核心
+ * 包含兩個場景：驗電器 (Electroscope) 與 金屬球 (Spheres)
+ */
+
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+let width, height;
+let activeTab = 'electroscope'; // 'electroscope' or 'spheres'
+let animationId;
+
+// 狀態變數：驗電器
+let electroscopeState = {
+    rodPos: { x: 0, y: 0 },
+    rodDragging: false,
+    rodCharge: 1, // 正電
+    scopeCharge: 0, // 0: 中性, >0: 正電, <0: 負電
+    leafAngle: 0,
+    inductionLevel: 0, // 感應程度 (電子跑到上面的量)
+    isGrounded: false,
+    message: "將帶電棒靠近..."
+};
+
+// 狀態變數：金屬球
+let spheresState = {
+    rodPos: { x: 0, y: 0 },
+    rodDragging: false,
+    sphere1: { angle: 0, charge: 0, x: 0, y: 0 }, // 左球
+    sphere2: { angle: 0, charge: 0, x: 0, y: 0 }, // 右球
+    touched: false
+};
+
+// 初始化與調整大小
+function resize() {
+    const parent = canvas.parentElement;
+    canvas.width = parent.clientWidth;
+    canvas.height = parent.clientHeight;
+    width = canvas.width;
+    height = canvas.height;
+    
+    // 重置棒子位置到右側
+    electroscopeState.rodPos = { x: width * 0.8, y: height * 0.3 };
+    spheresState.rodPos = { x: width * 0.8, y: height * 0.5 };
+}
+window.addEventListener('resize', resize);
+resize();
+
+// 切換分頁
+function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-electroscope').className = tab === 'electroscope' ? 
+        'px-4 py-2 rounded-md bg-blue-500 text-white font-medium transition-colors' : 
+        'px-4 py-2 rounded-md text-slate-300 hover:text-white font-medium transition-colors';
+    document.getElementById('tab-spheres').className = tab === 'spheres' ? 
+        'px-4 py-2 rounded-md bg-blue-500 text-white font-medium transition-colors' : 
+        'px-4 py-2 rounded-md text-slate-300 hover:text-white font-medium transition-colors';
+    
+    document.getElementById('electroscope-controls').style.display = tab === 'electroscope' ? 'flex' : 'none';
+    document.getElementById('spheres-controls').style.display = tab === 'spheres' ? 'flex' : 'none';
+
+    updateInstruction(tab === 'electroscope' ? "試著拖曳玻璃棒靠近金屬盤..." : "將帶電棒靠近小球觀察吸引與排斥...");
+    
+    if(tab === 'electroscope') resetElectroscope();
+    else resetSpheres();
+}
+
+function updateInstruction(text) {
+    const el = document.getElementById('instruction-toast');
+    el.innerText = text;
+    el.style.opacity = 1;
+    setTimeout(() => el.style.opacity = 0, 4000);
+}
+
+// --------------------------------------------------------
+// 物理與繪圖邏輯：通用
+// --------------------------------------------------------
+
+function drawPlus(x, y, size=10, color='red') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - size/2, y);
+    ctx.lineTo(x + size/2, y);
+    ctx.moveTo(x, y - size/2);
+    ctx.lineTo(x, y + size/2);
+    ctx.stroke();
+}
+
+function drawMinus(x, y, size=10, color='blue') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - size/2, y);
+    ctx.lineTo(x + size/2, y);
+    ctx.stroke();
+}
+
+function drawRod(x, y, angle = -Math.PI / 4) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    // 玻璃棒本體
+    const grad = ctx.createLinearGradient(-10, 0, 10, 0);
+    grad.addColorStop(0, 'rgba(200, 240, 255, 0.8)');
+    grad.addColorStop(0.5, 'rgba(240, 250, 255, 0.9)');
+    grad.addColorStop(1, 'rgba(180, 230, 255, 0.8)');
+    
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#8ecae6';
+    ctx.lineWidth = 2;
+    
+    // 圓角長方形
+    ctx.beginPath();
+    ctx.roundRect(-15, -100, 30, 200, 15);
+    ctx.fill();
+    ctx.stroke();
+
+    // 電荷 (正電)
+    for(let i = -80; i < 90; i+=30) {
+        drawPlus(0, i, 12, 'rgba(255, 100, 100, 0.8)');
+    }
+
+    ctx.restore();
+}
+
+// --------------------------------------------------------
+// 場景 1：驗電器 (Electroscope)
+// --------------------------------------------------------
+
+function resetElectroscope() {
+    electroscopeState.scopeCharge = 0;
+    electroscopeState.leafAngle = 0;
+    electroscopeState.inductionLevel = 0;
+    electroscopeState.isGrounded = false;
+    electroscopeState.rodPos = { x: width * 0.8, y: height * 0.3 };
+    updateInstruction("實驗已重置。帶電棒帶正電。");
+}
+
+function groundElectroscope() {
+    electroscopeState.isGrounded = true;
+    setTimeout(() => { electroscopeState.isGrounded = false; }, 1000); // 1秒後放開
+    // 接地瞬間，如果棒子在附近（感應中），電子會流上來中和正電，導致移開棒子後帶負電
+    // 這裡簡化模擬：接地讓金箔閉合（電位為0），電荷被中和
+    electroscopeState.scopeCharge = 0; 
+    updateInstruction("手觸碰金屬盤：電子流入，電荷中和。");
+}
+
+function updateElectroscope() {
+    const centerX = width / 2;
+    const centerY = height * 0.6;
+    const topPlateY = centerY - 150;
+    
+    // 1. 計算棒子與金屬盤的距離
+    // 棒子熱點大概在左上角
+    const rodTipX = electroscopeState.rodPos.x - 40; 
+    const rodTipY = electroscopeState.rodPos.y + 40;
+    
+    const dist = Math.hypot(rodTipX - centerX, rodTipY - topPlateY);
+    const maxDist = 300;
+    
+    // 2. 接觸判斷
+    const isTouching = dist < 50;
+
+    // 3. 物理邏輯
+    if (electroscopeState.isGrounded) {
+        // 接地時，金箔不帶電，電荷歸零 (或視感應情況，這裡簡化為歸零閉合)
+        electroscopeState.inductionLevel = 0;
+        electroscopeState.leafAngle = 0;
+        if (!isTouching) {
+             // 如果沒接觸棒子，接地就是完全中和
+             electroscopeState.scopeCharge = 0;
+        }
+    } else {
+        if (isTouching) {
+            // 接觸起電：電子被棒子吸走，驗電器帶正電
+            if (electroscopeState.scopeCharge <= 0) {
+                electroscopeState.scopeCharge = 0.8; // 變成正電
+                updateInstruction("接觸！電子被吸到棒子上，驗電器現在帶正電。");
+            }
+            electroscopeState.inductionLevel = 0; // 接觸時視為一體，不再強調感應分離
+        } else {
+            // 感應起電：距離越近，分離越強
+            // inductionLevel 代表電子跑到上面的比例 (0~1)
+            let effect = Math.max(0, 1 - (dist / maxDist));
+            electroscopeState.inductionLevel = effect * 1.5; // 係數放大效果
+        }
+
+        // 計算金箔角度
+        // 角度取決於：淨電荷 + 感應到底部的電荷
+        // 如果帶正電 (scopeCharge > 0)，底部更正。
+        // 如果中性但感應 (induction > 0)，底部因電子跑上去而變正。
+        // 總之，底部正電荷量 = scopeCharge + (inductionLevel * factor)
+        // 註：這是一個視覺模擬，非嚴格定量計算
+        
+        let bottomPositiveCharge = electroscopeState.scopeCharge + (electroscopeState.inductionLevel * 0.5);
+        
+        // 限制範圍
+        if(bottomPositiveCharge < 0) bottomPositiveCharge = 0; // 暫不模擬負電棒情況
+        
+        let targetAngle = Math.min(Math.PI / 2.5, bottomPositiveCharge * 1.2);
+        
+        // 平滑動畫
+        electroscopeState.leafAngle += (targetAngle - electroscopeState.leafAngle) * 0.1;
+    }
+}
+
+function drawElectroscopeScene() {
+    const centerX = width / 2;
+    const centerY = height * 0.6;
+    const topPlateY = centerY - 150;
+
+    // 畫瓶子
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 4;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 瓶底底座
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(centerX - 60, centerY + 90, 120, 20);
+
+    // 金屬桿
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(centerX - 5, topPlateY, 10, 150);
+
+    // 金屬盤 (Top)
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.ellipse(centerX, topPlateY, 60, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 金箔 (Leaves)
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    
+    // 左金箔
+    ctx.fillStyle = '#fbbf24'; // Gold
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.rotate(-electroscopeState.leafAngle / 2); // 分開
+    ctx.fillRect(-2, 0, 4, 80);
+    // 金箔上的電荷 (正電)
+    if (electroscopeState.leafAngle > 0.1) {
+        drawPlus(0, 60, 8, '#b45309');
+    }
+    ctx.rotate(electroscopeState.leafAngle / 2); // 復原
+
+    // 右金箔
+    ctx.rotate(electroscopeState.leafAngle / 2);
+    ctx.fillRect(-2, 0, 4, 80);
+    if (electroscopeState.leafAngle > 0.1) {
+        drawPlus(0, 60, 8, '#b45309');
+    }
+    ctx.restore();
+
+    // 繪製電荷分布 (電子移動動畫)
+    // 盤子上的電荷
+    // 如果感應強，電子(負)多
+    // 如果本身帶正電，電子少(或是畫正號)
+    
+    let electronCount = Math.floor(electroscopeState.inductionLevel * 8); 
+    // 如果帶正電，顯示正號在盤子上
+    // 如果感應，顯示負號在盤子上
+    
+    if (electroscopeState.scopeCharge > 0.1) {
+        // 整體正電
+        drawPlus(centerX, topPlateY, 12);
+        drawPlus(centerX - 20, topPlateY, 12);
+        drawPlus(centerX + 20, topPlateY, 12);
+    } else if (electronCount > 0) {
+        // 感應中：顯示電子被吸上來
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "blue";
+        for(let i=0; i<electronCount; i++) {
+            let offset = (i - electronCount/2) * 15;
+            drawMinus(centerX + offset, topPlateY, 12);
+        }
+        
+        // 畫出電子流動的路徑 (視覺輔助)
+        ctx.strokeStyle = "rgba(0, 0, 255, 0.2)";
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX, topPlateY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // 手接地動畫
+    if (electroscopeState.isGrounded) {
+        ctx.font = "40px Arial";
+        ctx.fillText("✋", centerX + 50, topPlateY);
+        
+        // 電子流動箭頭 (從地到盤)
+        ctx.fillStyle = "blue";
+        ctx.font = "20px Arial";
+        ctx.fillText("e⁻", centerX + 70, topPlateY + 30);
+        ctx.beginPath();
+        ctx.moveTo(centerX + 80, topPlateY + 60);
+        ctx.lineTo(centerX + 60, topPlateY + 20);
+        ctx.strokeStyle = "blue";
+        ctx.stroke();
+    }
+    
+    // 畫棒子
+    drawRod(electroscopeState.rodPos.x, electroscopeState.rodPos.y);
+}
+
+// --------------------------------------------------------
+// 場景 2：金屬球 (Spheres)
+// --------------------------------------------------------
+
+function resetSpheres() {
+    spheresState.sphere1 = { angle: 0, charge: 0, x: 0, y: 0 };
+    spheresState.sphere2 = { angle: 0, charge: 0, x: 0, y: 0 };
+    spheresState.touched = false;
+    spheresState.rodPos = { x: width * 0.8, y: height * 0.5 };
+    updateInstruction("重置完成。請緩慢移動帶電棒靠近小球。");
+}
+
+function updateSpheres() {
+    const anchorX = width / 2;
+    const anchorY = height * 0.2;
+    const stringLen = 200;
+    
+    // 棒子位置 (感應源)
+    const rodX = spheresState.rodPos.x - 30; // 校正尖端
+    const rodY = spheresState.rodPos.y + 30;
+
+    const distToAnchor = Math.hypot(rodX - anchorX, rodY - (anchorY + stringLen));
+    
+    // 簡單物理狀態機
+    // 1. 吸引階段 (未接觸)
+    if (!spheresState.touched) {
+        if (distToAnchor < 250) {
+            // 靠近了：感應吸引
+            // 兩球一起往棒子方向擺
+            let angleToRod = Math.atan2(rodX - anchorX, rodY - anchorY);
+            // 限制最大擺角
+            let targetAngle = angleToRod * 0.8; 
+            
+            // 兩球稍微分開一點點 (極化)
+            spheresState.sphere1.angle += (targetAngle - 0.05 - spheresState.sphere1.angle) * 0.1;
+            spheresState.sphere2.angle += (targetAngle + 0.05 - spheresState.sphere2.angle) * 0.1;
+            
+            // 判斷接觸
+            // 計算球的位置
+            let s2x = anchorX + Math.sin(spheresState.sphere2.angle) * stringLen;
+            let s2y = anchorY + Math.cos(spheresState.sphere2.angle) * stringLen;
+            let distToRodTip = Math.hypot(rodX - s2x, rodY - s2y);
+            
+            if (distToRodTip < 40) {
+                spheresState.touched = true;
+                spheresState.sphere1.charge = 1;
+                spheresState.sphere2.charge = 1;
+                updateInstruction("接觸！電荷轉移，兩球帶同性電，開始排斥！");
+            }
+        } else {
+            // 遠離：回歸垂直
+            spheresState.sphere1.angle *= 0.9;
+            spheresState.sphere2.angle *= 0.9;
+        }
+    } else {
+        // 2. 排斥階段 (已接觸帶電)
+        // 球帶正電，棒子帶正電 -> 互相排斥
+        // 球之間也排斥
+        
+        let baseRepulsion = 0.3; // 球之間的排斥半角
+        
+        // 棒子對球的斥力
+        let rodRepel = 0;
+        if (distToAnchor < 400) {
+            rodRepel = (400 - distToAnchor) / 400 * 0.5; // 越近推越遠
+        }
+        
+        // 判斷棒子在哪邊
+        let rodSide = (rodX > anchorX) ? -1 : 1; // 棒在右邊，球往左躲
+        
+        let targetAngle1 = -baseRepulsion + (rodRepel * rodSide);
+        let targetAngle2 = baseRepulsion + (rodRepel * rodSide);
+        
+        spheresState.sphere1.angle += (targetAngle1 - spheresState.sphere1.angle) * 0.05;
+        spheresState.sphere2.angle += (targetAngle2 - spheresState.sphere2.angle) * 0.05;
+    }
+}
+
+function drawSpheresScene() {
+    const anchorX = width / 2;
+    const anchorY = height * 0.2;
+    const stringLen = 200;
+
+    // 天花板
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(anchorX - 100, anchorY - 10, 200, 10);
+    
+    // 計算球位置
+    let s1x = anchorX + Math.sin(spheresState.sphere1.angle) * stringLen;
+    let s1y = anchorY + Math.cos(spheresState.sphere1.angle) * stringLen;
+    
+    let s2x = anchorX + Math.sin(spheresState.sphere2.angle) * stringLen;
+    let s2y = anchorY + Math.cos(spheresState.sphere2.angle) * stringLen;
+    
+    // 畫線
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(anchorX, anchorY);
+    ctx.lineTo(s1x, s1y);
+    ctx.moveTo(anchorX, anchorY);
+    ctx.lineTo(s2x, s2y);
+    ctx.stroke();
+    
+    // 畫球 1
+    ctx.fillStyle = '#94a3b8'; // Metal color
+    ctx.beginPath();
+    ctx.arc(s1x, s1y, 20, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // 畫球 2
+    ctx.beginPath();
+    ctx.arc(s2x, s2y, 20, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // 畫球上的電荷
+    if (!spheresState.touched) {
+        // 未接觸，感應時
+        // 靠近棒子的那一側帶負電，遠離帶正電 (極化)
+        // 這裡簡化顯示：如果被吸引，顯示感應電荷
+        const rodX = spheresState.rodPos.x - 30;
+        const dist = Math.hypot(rodX - anchorX, spheresState.rodPos.y - (anchorY+200));
+        
+        if (dist < 250) {
+            // 靠近棒子(右側球)的右邊畫負號
+            drawMinus(s2x + 10, s2y, 8, 'blue');
+            drawPlus(s1x - 10, s1y, 8, 'red');
+        }
+    } else {
+        // 已接觸，帶正電
+        drawPlus(s1x, s1y, 10, 'red');
+        drawPlus(s2x, s2y, 10, 'red');
+    }
+
+    // 畫棒子
+    drawRod(spheresState.rodPos.x, spheresState.rodPos.y);
+}
+
+// --------------------------------------------------------
+// 主迴圈
+// --------------------------------------------------------
+
+function loop() {
+    ctx.clearRect(0, 0, width, height);
+
+    if (activeTab === 'electroscope') {
+        updateElectroscope();
+        drawElectroscopeScene();
+    } else {
+        updateSpheres();
+        drawSpheresScene();
+    }
+    
+    requestAnimationFrame(loop);
+}
+loop();
+
+// --------------------------------------------------------
+// 互動控制 (Touch & Mouse)
+// --------------------------------------------------------
+
+function handleStart(x, y) {
+    // 檢查是否點到棒子
+    let rodX, rodY;
+    if (activeTab === 'electroscope') {
+        rodX = electroscopeState.rodPos.x;
+        rodY = electroscopeState.rodPos.y;
+    } else {
+        rodX = spheresState.rodPos.x;
+        rodY = spheresState.rodPos.y;
+    }
+    
+    // 簡單的碰撞檢測 (範圍寬鬆一點方便手指操作)
+    if (Math.hypot(x - rodX, y - rodY) < 150) {
+        if (activeTab === 'electroscope') electroscopeState.rodDragging = true;
+        else spheresState.rodDragging = true;
+    }
+}
+
+function handleMove(x, y) {
+    if (activeTab === 'electroscope' && electroscopeState.rodDragging) {
+        electroscopeState.rodPos.x = x;
+        electroscopeState.rodPos.y = y;
+    } else if (activeTab === 'spheres' && spheresState.rodDragging) {
+        spheresState.rodPos.x = x;
+        spheresState.rodPos.y = y;
+    }
+}
+
+function handleEnd() {
+    electroscopeState.rodDragging = false;
+    spheresState.rodDragging = false;
+}
+
+// Mouse Events
+canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    handleStart(e.clientX - rect.left, e.clientY - rect.top);
+});
+window.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    handleMove(e.clientX - rect.left, e.clientY - rect.top);
+});
+window.addEventListener('mouseup', handleEnd);
+
+// Touch Events
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    handleStart(touch.clientX - rect.left, touch.clientY - rect.top);
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); // 阻止滾動
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    handleMove(touch.clientX - rect.left, touch.clientY - rect.top);
+}, {passive: false});
+
+canvas.addEventListener('touchend', handleEnd);
+
+</script>
+</body>
+</html>
