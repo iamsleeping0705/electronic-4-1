@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>靜電實驗五部曲 - 自由互動版</title>
+    <style>
+        /* --- 全域通用樣式 --- */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+            background-color: #ecf0f1;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            touch-action: none;
+        }
+
+        /* --- 頂部能量條 --- */
+        #top-bar {
+            width: 100%;
+            height: 50px;
+            background-color: #2c3e50;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            box-sizing: border-box;
+            color: white;
+            justify-content: space-between;
+            z-index: 200;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .energy-container {
+            flex: 1;
+            max-width: 600px;
+            background-color: #34495e;
+            height: 20px;
+            border-radius: 10px;
+            margin: 0 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        #energy-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #f1c40f, #e67e22);
+            transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #energy-text {
+            font-weight: bold;
+            color: #f1c40f;
+        }
+
+        /* --- 主選單 (首頁) --- */
+        #home-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            z-index: 10;
+        }
+
+        .menu-title {
+            font-size: 3rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .menu-credits {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            background-color: rgba(255,255,255,0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 1px solid #bdc3c7;
+            text-align: center;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 1000px;
+            width: 95%;
+        }
+
+        .menu-btn {
+            padding: 20px;
+            font-size: 1.3rem;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            background-color: #fff;
+            color: #34495e;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 2px solid transparent;
+        }
+
+        .menu-btn:hover, .menu-btn:active {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            border-color: #3498db;
+            color: #3498db;
+        }
+        
+        /* --- 實驗容器 --- */
+        .experiment-wrapper {
+            display: none;
+            width: 100%;
+            height: calc(100vh - 110px);
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .experiment-wrapper.active {
+            display: flex;
+        }
+
+        /* --- 下方導覽列 --- */
+        #bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: #2c3e50;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+            z-index: 100;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .nav-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #bdc3c7;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .nav-btn.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+            font-weight: bold;
+        }
+
+        .nav-home-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        .nav-home-btn:hover { background-color: #c0392b; }
+
+        /* --- Layout --- */
+        .main-layout {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 1300px;
+            width: 98%;
+            height: 98%;
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 0 0 70%;
+        }
+
+        .ui-container {
+            display: flex;
+            gap: 8px;
+            min-height: 40px; 
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .ui-label {
+            font-weight: bold;
+            color: #555;
+            margin-right: 5px;
+            font-size: 0.9rem;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #bdc3c7;
+            background-color: #f9f9f9;
+            flex: 1;
+            touch-action: none;
+        }
+        
+        canvas { display: block; cursor: default; width: 100%; height: 100%; touch-action: none; }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fdfefe;
+            border-left: 2px solid #eee;
+            padding-left: 15px;
+            min-width: 250px;
+            overflow-y: auto;
+        }
+
+        .guide-box {
+            background-color: #e8f6f3;
+            border-left: 5px solid #1abc9c;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .guide-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #16a085;
+            margin-bottom: 8px;
+        }
+
+        .guide-content {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #34495e;
+        }
+
+        .status-box {
+            background-color: #fff8e1;
+            border: 1px solid #ffe0b2;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: auto;
+        }
+
+        .mat-btn {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            white-space: nowrap;
+            margin-bottom: 4px;
+        }
+        .mat-btn:hover, .mat-btn:active { background-color: #2980b9; transform: translateY(-1px); }
+        .mat-btn.active { background-color: #2c3e50; border: 2px solid #34495e; }
+        
+        .quiz-btn {
+            background-color: #8e44ad;
+            border: 2px solid #9b59b6;
+        }
+        .quiz-btn:hover { background-color: #71368a; }
+
+        .pos-text { color: #e74c3c; font-weight: bold; }
+        .neg-text { color: #3498db; font-weight: bold; }
+        .highlight { color: #e74c3c; font-weight: bold; }
+        .action-tip { color: #2980b9; font-weight: bold; }
+
+        /* --- 測驗模態視窗 --- */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.6); 
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 30px;
+            border-radius: 15px;
+            width: 500px;
+            max-width: 90%;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            text-align: left;
+            position: relative;
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown {
+            from {transform: translateY(-50px); opacity: 0;}
+            to {transform: translateY(0); opacity: 1;}
+        }
+        .quiz-question {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .quiz-options button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 2px solid #ecf0f1;
+            background-color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .quiz-options button:hover {
+            background-color: #f0f3f4;
+            border-color: #bdc3c7;
+        }
+        .quiz-options button.correct {
+            background-color: #d4efdf;
+            border-color: #27ae60;
+            color: #1e8449;
+        }
+        .quiz-options button.wrong {
+            background-color: #fadbd8;
+            border-color: #c0392b;
+            color: #922b21;
+        }
+        .quiz-feedback {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            display: none;
+        }
+        .close-modal {
+            margin-top: 15px;
+            padding: 8px 20px;
+            background-color: #34495e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            float: right;
+        }
+        
+        @media (max-width: 768px) {
+            .menu-grid { grid-template-columns: 1fr; }
+            .main-layout { flex-direction: column; overflow-y: auto; }
+            .left-panel { flex: none; height: 60vh; }
+            .right-panel { flex: none; height: auto; min-height: 200px; border-left: none; border-top: 2px solid #eee; padding-left: 0; padding-top: 10px;}
+            .menu-title { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部能量條 -->
+    <div id="top-bar">
+        <div style="font-weight:bold; font-size:1.1rem;">⚡ 知識能量條</div>
+        <div class="energy-container">
+            <div id="energy-fill"></div>
+        </div>
+        <div id="energy-text">0 分</div>
+    </div>
+
+    <!-- 首頁選單 -->
+    <div id="home-screen">
+        <div class="menu-title">靜電實驗五部曲</div>
+        <div class="menu-credits">桃園Bill Yang老師設計，台中Sleeping老師改編</div>
+        <div class="menu-grid">
+            <button class="menu-btn" onclick="switchExp(1)">1. 摩擦起電</button>
+            <button class="menu-btn" onclick="switchExp(2)">2. 靜電感應</button>
+            <button class="menu-btn" onclick="switchExp(3)">3. 感應起電</button>
+            <button class="menu-btn" onclick="switchExp(4)">4. 接觸起電</button>
+            <button class="menu-btn" onclick="switchExp(5)">5. 金箔驗電器</button>
+        </div>
+    </div>
+
+    <!-- 實驗 1：摩擦起電 -->
+    <div id="exp1-wrapper" class="experiment-wrapper">
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="ui-container">
+                    <button id="btn-glass-e1" class="mat-btn active">玻棒 + 絲絹</button>
+                    <button id="btn-plastic-e1" class="mat-btn">塑膠棒 + 毛皮</button>
+                    <button id="btn-reset-e1" class="mat-btn" style="background-color:#95a5a6;">重置</button>
+                    <button class="mat-btn quiz-btn" onclick="openQuiz(1)" style="margin-left:auto;">📝 觀念檢測</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-e1" width="800" height="500"></canvas>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div class="guide-box">
+                    <div class="guide-title">📋 實驗目標</div>
+                    <div class="guide-content" id="guide-goal-e1">選擇材料進行摩擦，觀察電子轉移。</div>
+                </div>
+                <div class="guide-box">
+                    <div class="guide-title">🖐️ 操作指導</div>
+                    <div class="guide-content" id="guide-action-e1">請按住布料，在棒子上<b style="color:#e74c3c;">來回摩擦移動</b>。<br>單純接觸不會發生轉移，必須要有「摩擦」動作！</div>
+                </div>
+                <div class="status-box">
+                    <div>電子轉移進度</div>
+                    <div id="progress-display-e1" style="font-size:1.5rem; font-weight:bold; color:#e67e22;">0 / 8</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 實驗 2：靜電感應 -->
+    <div id="exp2-wrapper" class="experiment-wrapper">
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="ui-container">
+                    <button id="btn-glass-e2" class="mat-btn active">帶正電棒</button>
+                    <button id="btn-plastic-e2" class="mat-btn">帶負電棒</button>
+                    <button id="btn-reset-e2" class="mat-btn" style="background-color:#95a5a6;">重置</button>
+                    <button class="mat-btn quiz-btn" onclick="openQuiz(2)" style="margin-left:auto;">📝 觀念檢測</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-e2" width="800" height="500"></canvas>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div class="guide-box">
+                    <div class="guide-title">📋 實驗原理</div>
+                    <div class="guide-content">觀察電荷分離：近端異性電，遠端同性電。<br>注意觀察下方數值，理解電荷守恆。</div>
+                </div>
+                <div class="guide-box">
+                    <div class="guide-title">🖐️ 操作指導</div>
+                    <div class="guide-content">拖曳棒子靠近金屬球。<br>觀察畫面中的電荷數(e)變化。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 實驗 3：感應起電 (自由互動版) -->
+    <div id="exp3-wrapper" class="experiment-wrapper">
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="ui-container">
+                    <span class="ui-label">棒子材質:</span>
+                    <button id="btn-glass-e3" class="mat-btn active">正電 (玻璃棒)</button>
+                    <button id="btn-plastic-e3" class="mat-btn">負電 (塑膠棒)</button>
+                    <div style="flex:1;"></div>
+                    <button id="btn-reset-e3" class="mat-btn" style="background-color:#34495e;">重置位置</button>
+                    <button class="mat-btn quiz-btn" onclick="openQuiz(3)" style="margin-left:auto;">📝 觀念檢測</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-e3" width="940" height="500"></canvas>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div class="guide-box" id="guide-box-e3">
+                    <div class="guide-title" id="guide-title-e3">自由操作實驗</div>
+                    <div class="guide-content" id="guide-content-e3">
+                        <b>1. 靠近：</b>拖曳棒子靠近金屬球 (注意：不要接觸！)。<br>
+                        <b>2. 接地：</b>拖曳小人去觸摸金屬球右側。<br>
+                        <b>3. 斷地：</b>將小人拖離。<br>
+                        <b>4. 移開：</b>將棒子拖離。
+                    </div>
+                </div>
+                <div class="status-box">
+                    <div style="font-weight:bold; margin-bottom:5px;">目前狀態：<span id="guide-status-e3" style="color:#2980b9;">準備中</span></div>
+                    <div>金屬球淨電荷：<span id="net-charge-display-e3" style="font-size:1.2rem; font-weight:bold; color:#27ae60;">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 實驗 4：接觸起電 -->
+    <div id="exp4-wrapper" class="experiment-wrapper">
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="ui-container">
+                    <button id="btn-plastic-e4" class="mat-btn active">負電棒</button>
+                    <button id="btn-glass-e4" class="mat-btn">正電棒</button>
+                    <button id="btn-reset-e4" class="mat-btn" style="background-color:#95a5a6;">重置</button>
+                    <button class="mat-btn quiz-btn" onclick="openQuiz(4)" style="margin-left:auto;">📝 觀念檢測</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-e4" width="860" height="450"></canvas>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div class="guide-box" id="guide-box-e4">
+                    <div class="guide-title">步驟 1：準備接觸</div>
+                    <div class="guide-content">拖曳棒子直接接觸金屬球，觀察電荷分配。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 實驗 5：金箔驗電器 -->
+    <div id="exp5-wrapper" class="experiment-wrapper">
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="ui-container" style="flex-wrap: wrap; height: auto; padding-bottom: 5px;">
+                    <span class="ui-label">棒子:</span>
+                    <button id="btn-glass-e5" class="mat-btn active">正電</button>
+                    <button id="btn-plastic-e5" class="mat-btn">負電</button>
+                    <span class="ui-label" style="margin-left:10px;">初始:</span>
+                    <button id="btn-init-neu-e5" class="mat-btn active">中性</button>
+                    <button id="btn-init-pos-e5" class="mat-btn">正電</button>
+                    <button id="btn-init-neg-e5" class="mat-btn">負電</button>
+                    
+                    <button id="btn-finger-e5" class="mat-btn" style="background-color:#e67e22; margin-left:10px;">👆 手指接地</button>
+                    <button id="btn-reset-e5" class="mat-btn" style="background-color:#95a5a6;">重置</button>
+                    <button class="mat-btn quiz-btn" onclick="openQuiz(5)" style="margin-left:auto;">📝 觀念檢測</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="canvas-e5" width="800" height="500"></canvas>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div class="guide-box">
+                    <div class="guide-title">圖示說明</div>
+                    <div class="guide-content">
+                        <span style="color:#e74c3c; font-weight:bold;">● 質子 (正電)</span>：固定不動。<br>
+                        <span style="color:#3498db; font-weight:bold;">● 電子 (負電)</span>：可自由移動。<br>
+                        <br>
+                        <b>操作方法 (支援觸控)：</b><br>
+                        1. 拖曳棒子靠近。<br>
+                        2. 觀察電子如流體般快速移動。<br>
+                        3. 觀察金箔隨底部電荷量變化張開。
+                    </div>
+                </div>
+                <div class="status-box">
+                    <div>金箔張角狀態</div>
+                    <div id="leaf-angle-e5" style="font-size:1.2rem; font-weight:bold; color:#8e44ad;">0度 (閉合)</div>
+                    <div style="margin-top:5px; font-size:0.8rem; color:#555;">
+                        頂部淨電荷: <span id="top-charge-e5">0</span><br>
+                        底部淨電荷: <span id="bottom-charge-e5">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部導覽列 -->
+    <div id="bottom-nav">
+        <button class="nav-btn nav-home-btn" onclick="goHome()">🏠 主選單</button>
+        <button class="nav-btn" id="nav-btn-1" onclick="switchExp(1)">1.摩擦起電</button>
+        <button class="nav-btn" id="nav-btn-2" onclick="switchExp(2)">2.靜電感應</button>
+        <button class="nav-btn" id="nav-btn-3" onclick="switchExp(3)">3.感應起電</button>
+        <button class="nav-btn" id="nav-btn-4" onclick="switchExp(4)">4.接觸起電</button>
+        <button class="nav-btn" id="nav-btn-5" onclick="switchExp(5)">5.金箔驗電器</button>
+    </div>
+
+    <!-- 測驗視窗 -->
+    <div id="quiz-modal" class="modal">
+        <div class="modal-content">
+            <div class="quiz-question" id="modal-q-text">題目文字</div>
+            <div class="quiz-options" id="modal-q-options"></div>
+            <div class="quiz-feedback" id="modal-q-feedback"></div>
+            <button class="close-modal" onclick="closeQuiz()">關閉</button>
+        </div>
+    </div>
+
+<script>
+    // --- 全域變數與計分系統 ---
+    let currentExpId = 0;
+    let totalScore = 0;
+    const MAX_SCORE = 15; // 5題 * 3分
+
+    function updateScore(points) {
+        totalScore += points;
+        const percentage = Math.min((totalScore / MAX_SCORE) * 100, 100);
+        document.getElementById('energy-fill').style.width = percentage + '%';
+        document.getElementById('energy-text').innerText = totalScore + ' 分';
+    }
+
+    const quizData = {
+        1: { // 摩擦起電
+            q: "絲絹摩擦玻璃棒後，為何玻璃棒帶正電？",
+            options: [
+                { text: "質子從玻璃棒移動到絲絹", correct: false },
+                { text: "電子從玻璃棒移動到絲絹", correct: true },
+                { text: "電子從絲絹移動到玻璃棒", correct: false },
+                { text: "因為摩擦產生了新的正電荷", correct: false }
+            ],
+            reason: "正解：電子帶負電且在外層容易移動。玻璃棒失去電子，因此帶正電；絲絹得到電子帶負電。"
+        },
+        2: { // 靜電感應
+            q: "當帶負電的塑膠棒靠近金屬球（不接觸）時，金屬球整體的淨電荷為何？",
+            options: [
+                { text: "帶正電", correct: false },
+                { text: "帶負電", correct: false },
+                { text: "保持電中性（淨電荷為0）", correct: true },
+                { text: "近端正電，遠端負電，總電量增加", correct: false }
+            ],
+            reason: "正解：靜電感應只是讓導體內的自由電子重新分佈（電荷分離），並沒有電荷進出導體，故整體仍為電中性。"
+        },
+        3: { // 感應起電
+            q: "利用「帶負電」的塑膠棒進行感應起電，最後金屬球會帶什麼電？",
+            options: [
+                { text: "帶正電", correct: true },
+                { text: "帶負電", correct: false },
+                { text: "電中性", correct: false },
+                { text: "不一定", correct: false }
+            ],
+            reason: "正解：負電棒排斥電子經由接地線流入地下，移開接地線與棒子後，金屬球缺乏電子，故帶正電。"
+        },
+        4: { // 接觸起電
+            q: "帶正電的玻璃棒接觸不帶電的金屬球，接觸後兩者帶電情形？",
+            options: [
+                { text: "玻璃棒正電，金屬球負電", correct: false },
+                { text: "兩者都帶正電", correct: true },
+                { text: "兩者都變成電中性", correct: false },
+                { text: "玻璃棒變成負電", correct: false }
+            ],
+            reason: "正解：接觸起電會「分享」電荷。玻璃棒缺電子(正)，接觸時吸走金屬球部分電子，導致兩者都缺電子，皆帶正電。"
+        },
+        5: { // 金箔驗電器
+            q: "帶正電的玻璃棒「靠近」金箔驗電器金屬盤（不接觸），金箔會如何？",
+            options: [
+                { text: "閉合不動", correct: false },
+                { text: "張開，因為金箔帶正電", correct: true },
+                { text: "張開，因為金箔帶負電", correct: false },
+                { text: "先張開再閉合", correct: false }
+            ],
+            reason: "正解：靜電感應。正電棒吸引電子到金屬盤(上方負)，正電荷被排斥到金箔(下方正)。金箔因同性相斥而張開。"
+        }
+    };
+
+    function goHome() {
+        document.getElementById('home-screen').style.display = 'flex';
+        document.getElementById('bottom-nav').style.display = 'none';
+        for(let i=1; i<=5; i++) {
+            const w = document.getElementById(`exp${i}-wrapper`);
+            if(w) w.classList.remove('active');
+        }
+        currentExpId = 0;
+    }
+
+    function switchExp(id) {
+        currentExpId = id;
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('bottom-nav').style.display = 'flex';
+        for(let i=1; i<=5; i++) {
+            const wrapper = document.getElementById(`exp${i}-wrapper`);
+            const navBtn = document.getElementById(`nav-btn-${i}`);
+            if(wrapper) {
+                if(i === id) wrapper.classList.add('active');
+                else wrapper.classList.remove('active');
+            }
+            if(navBtn) {
+                if(i === id) navBtn.classList.add('active');
+                else navBtn.classList.remove('active');
+            }
+        }
+    }
+
+    let hasAnswered = {}; 
+
+    function openQuiz(id) {
+        const data = quizData[id];
+        if(!data) return;
+        document.getElementById('modal-q-text').innerText = data.q;
+        const optDiv = document.getElementById('modal-q-options');
+        optDiv.innerHTML = '';
+        document.getElementById('modal-q-feedback').style.display = 'none';
+        document.getElementById('quiz-modal').style.display = 'flex';
+
+        data.options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.innerText = opt.text;
+            btn.onclick = function() {
+                checkAnswer(btn, opt.correct, data.reason, id);
+            };
+            optDiv.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(btn, isCorrect, reason, id) {
+        const feedback = document.getElementById('modal-q-feedback');
+        feedback.style.display = 'block';
+        feedback.innerHTML = reason;
+        
+        const btns = document.querySelectorAll('#modal-q-options button');
+        btns.forEach(b => b.disabled = true);
+
+        if(isCorrect) {
+            btn.classList.add('correct');
+            feedback.style.color = '#1e8449';
+            feedback.innerHTML = "🎉 答對了！ " + feedback.innerHTML;
+            if(!hasAnswered[id]) {
+                updateScore(3);
+                hasAnswered[id] = true;
+            }
+        } else {
+            btn.classList.add('wrong');
+            feedback.style.color = '#c0392b';
+            feedback.innerHTML = "❌ 答錯了。 " + feedback.innerHTML;
+        }
+    }
+
+    function closeQuiz() {
+        document.getElementById('quiz-modal').style.display = 'none';
+    }
+
+    function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+        if (typeof stroke === 'undefined') stroke = true;
+        if (typeof radius === 'undefined') radius = 5;
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        if (stroke) ctx.stroke();
+        if (fill) ctx.fill();
+    }
+
+    function getPointerPos(e, canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    function setupInteractions(canvas, onStart, onMove, onEnd) {
+        canvas.addEventListener('mousedown', (e) => onStart(e, getPointerPos(e, canvas)));
+        canvas.addEventListener('mousemove', (e) => onMove(e, getPointerPos(e, canvas)));
+        window.addEventListener('mouseup', onEnd);
+        canvas.addEventListener('touchstart', (e) => {
+            if(e.cancelable) e.preventDefault();
+            onStart(e, getPointerPos(e, canvas));
+        }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => {
+            if(e.cancelable) e.preventDefault();
+            onMove(e, getPointerPos(e, canvas));
+        }, {passive: false});
+        window.addEventListener('touchend', onEnd);
+    }
+
+    // ==========================================
+    // 實驗 1: 摩擦起電
+    // ==========================================
+    (function() {
+        const canvas = document.getElementById('canvas-e1');
+        const ctx = canvas.getContext('2d');
+        let rod = {x: 250, y: 150, w: 50, h: 250, type: 'glass'};
+        let cloth = {x: 450, y: 200, w: 120, h: 120};
+        let electrons = []; 
+        let dragging = null;
+        let dragOff = {x:0, y:0};
+        let frictionDistance = 0;
+        let lastDragPos = {x:0, y:0};
+
+        function initParticles() {
+            electrons = [];
+            for(let i=0; i<8; i++) {
+                let py = rod.y + 30 + i*25;
+                electrons.push({x: rod.x+15, y: py, charge: -1, owner: 'rod', fixed:false});
+                electrons.push({x: rod.x+35, y: py, charge: 1, owner: 'rod', fixed: true});
+            }
+            for(let i=0; i<8; i++) {
+                let rx = cloth.x + 20 + Math.random()*80;
+                let ry = cloth.y + 20 + Math.random()*80;
+                electrons.push({x: rx, y: ry, charge: -1, owner: 'cloth', fixed:false});
+                electrons.push({x: rx+5, y: ry+5, charge: 1, owner: 'cloth', fixed: true});
+            }
+            updateProgress();
+            frictionDistance = 0;
+        }
+        initParticles();
+
+        function draw() {
+            if(currentExpId !== 1) { requestAnimationFrame(draw); return; }
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            
+            ctx.save();
+            if(rod.type==='glass') ctx.fillStyle = 'rgba(200,230,255,0.9)';
+            else ctx.fillStyle = '#7f8c8d';
+            ctx.strokeStyle = '#555';
+            roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 10, true, true);
+            ctx.restore();
+            
+            ctx.save();
+            ctx.fillStyle = rod.type === 'glass' ? '#e91e63' : '#d35400';
+            roundRect(ctx, cloth.x, cloth.y, cloth.w, cloth.h, 10, true, true);
+            ctx.restore();
+
+            let transferTrigger = false;
+            if(checkOverlap(rod, cloth) && frictionDistance > 50) { 
+                transferTrigger = true;
+                frictionDistance = 0; 
+            }
+
+            electrons.forEach(p => {
+                let px = p.x; let py = p.y;
+                if(p.owner === 'rod') {
+                    let relX = p.x - (250); 
+                    let relY = p.y - (150);
+                    px = rod.x + relX; py = rod.y + relY;
+                } else {
+                    let relX = p.x - (450);
+                    let relY = p.y - (200);
+                    px = cloth.x + relX; py = cloth.y + relY;
+                }
+                
+                if(transferTrigger && !p.fixed && Math.random()>0.7) {
+                    if(rod.type==='glass' && p.owner==='rod' && p.charge===-1) {
+                         p.owner = 'cloth';
+                         p.x = 450 + 20 + Math.random()*80; 
+                         p.y = 200 + 20 + Math.random()*80;
+                         updateProgress();
+                         transferTrigger = false; 
+                    } else if (rod.type==='plastic' && p.owner==='cloth' && p.charge===-1) {
+                         p.owner = 'rod';
+                         p.x = 250 + 10 + Math.random()*30;
+                         p.y = 150 + Math.random()*200;
+                         updateProgress();
+                         transferTrigger = false;
+                    }
+                }
+
+                ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2);
+                ctx.fillStyle = p.charge > 0 ? '#e74c3c' : '#3498db';
+                ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font='10px Arial'; ctx.textAlign='center';
+                ctx.fillText(p.charge>0?'+':'-', px, py+3);
+            });
+
+            requestAnimationFrame(draw);
+        }
+        
+        function checkOverlap(r, c) {
+            return (r.x < c.x + c.w && r.x + r.w > c.x && r.y < c.y + c.h && r.y + r.h > c.y);
+        }
+
+        function updateProgress() {
+            let count = 0;
+            if(rod.type === 'glass') {
+                let current = electrons.filter(p=>p.owner==='rod' && p.charge===-1).length;
+                count = 8 - current; 
+            } else {
+                let current = electrons.filter(p=>p.owner==='rod' && p.charge===-1).length;
+                count = current - 8;
+            }
+            if(count < 0) count = 0;
+            if(count > 10) count = 10;
+            document.getElementById('progress-display-e1').innerText = count + " / 8";
+        }
+
+        setupInteractions(canvas, 
+            (e, pos) => {
+                if(currentExpId!==1) return;
+                if(pos.x>cloth.x && pos.x<cloth.x+cloth.w && pos.y>cloth.y && pos.y<cloth.y+cloth.h) {
+                    dragging = cloth; dragOff = {x:pos.x-cloth.x, y:pos.y-cloth.y};
+                    lastDragPos = {x: pos.x, y: pos.y};
+                }
+            },
+            (e, pos) => {
+                if(!dragging || currentExpId!==1) return;
+                let dx = pos.x - lastDragPos.x;
+                let dy = pos.y - lastDragPos.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if(checkOverlap(rod, cloth)) {
+                    frictionDistance += dist;
+                }
+
+                dragging.x = pos.x - dragOff.x;
+                dragging.y = pos.y - dragOff.y;
+                lastDragPos = {x: pos.x, y: pos.y};
+            },
+            () => { dragging = null; frictionDistance = 0; }
+        );
+
+        document.getElementById('btn-glass-e1').onclick = () => { rod.type='glass'; initParticles(); document.getElementById('btn-glass-e1').classList.add('active'); document.getElementById('btn-plastic-e1').classList.remove('active'); };
+        document.getElementById('btn-plastic-e1').onclick = () => { rod.type='plastic'; initParticles(); document.getElementById('btn-plastic-e1').classList.add('active'); document.getElementById('btn-glass-e1').classList.remove('active'); };
+        document.getElementById('btn-reset-e1').onclick = () => { cloth.x=450; cloth.y=200; initParticles(); };
+
+        requestAnimationFrame(draw);
+    })();
+
+    // ==========================================
+    // 實驗 2: 靜電感應
+    // ==========================================
+    (function() {
+        const canvas = document.getElementById('canvas-e2');
+        const ctx = canvas.getContext('2d');
+        let rod = {x: 50, y: 200, w: 200, h: 40, type: 'glass'}; 
+        let particles = [];
+        let dragging = null;
+        let dragOff = {x:0, y:0};
+
+        function init() {
+            rod.x = 50;
+            particles = [];
+            for(let y=-70; y<=70; y+=35) {
+                for(let x=-70; x<=70; x+=35) {
+                    if(x*x+y*y < 75*75) {
+                        particles.push({x:x, y:y, q:1, fixed:true}); 
+                        particles.push({x:x, y:y, q:-1, fixed:false, dx:0, dy:0}); 
+                    }
+                }
+            }
+        }
+        init();
+
+        function draw() {
+            if(currentExpId!==2) { requestAnimationFrame(draw); return; }
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+
+            let sphereX = 550, sphereY = 220, sphereR = 90;
+            
+            let rodTipX = rod.x + rod.w; 
+            let dist = sphereX - rodTipX - sphereR;
+            let effect = 0;
+            if(dist < 200) effect = (200 - dist)/200;
+            if(effect < 0) effect = 0; if(effect > 1) effect = 1;
+
+            let nearNet = 0; 
+            let farNet = 0;  
+            let totalPos = 0;
+            let totalNeg = 0;
+
+            particles.forEach(p => {
+                let currentX = sphereX + p.x;
+                if(!p.fixed) {
+                    let dir = (rod.type==='glass') ? -1 : 1; 
+                    let shift = effect * 50 * dir;
+                    currentX += shift;
+                    let dx = currentX - sphereX; let dy = p.y; 
+                    let d = Math.sqrt(dx*dx + dy*dy);
+                    if(d > sphereR-10) currentX = sphereX + (dx/d)*(sphereR-10);
+                }
+                
+                if(currentX < sphereX) nearNet += p.q;
+                else farNet += p.q;
+
+                if(p.q > 0) totalPos++;
+                else totalNeg++;
+            });
+
+            let nearSign = nearNet > 0 ? "+" : "";
+            let farSign = farNet > 0 ? "+" : "";
+            let nearText = `近端淨電量：${nearNet === 0 ? "0" : nearSign + nearNet + "e"}`;
+            let farText = `遠端淨電量：${farNet === 0 ? "0" : farSign + farNet + "e"}`;
+
+            let leftBg = 'rgba(236, 240, 241, 0.2)';
+            let rightBg = 'rgba(236, 240, 241, 0.2)';
+            let nearColor = "#7f8c8d";
+            let farColor = "#7f8c8d";
+
+            if(Math.abs(nearNet) > 0) {
+                if(nearNet < 0) { 
+                    leftBg = 'rgba(52, 152, 219, 0.2)'; nearColor = "#2980b9";
+                    rightBg = 'rgba(231, 76, 60, 0.2)'; farColor = "#c0392b";
+                } else { 
+                    leftBg = 'rgba(231, 76, 60, 0.2)'; nearColor = "#c0392b";
+                    rightBg = 'rgba(52, 152, 219, 0.2)'; farColor = "#2980b9";
+                }
+            }
+
+            let boxW = 180; let boxH = 280;
+            ctx.fillStyle = leftBg; 
+            ctx.fillRect(sphereX - boxW, sphereY - boxH/2, boxW, boxH);
+            ctx.fillStyle = rightBg; 
+            ctx.fillRect(sphereX, sphereY - boxH/2, boxW, boxH);
+            
+            ctx.beginPath();
+            ctx.moveTo(sphereX, sphereY - boxH/2);
+            ctx.lineTo(sphereX, sphereY + boxH/2);
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = "#bdc3c7";
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.font = "bold 18px Microsoft JhengHei";
+            ctx.textAlign = "center";
+            
+            ctx.fillStyle = nearColor;
+            ctx.fillText(nearText, sphereX - boxW/2, sphereY - boxH/2 - 10);
+            
+            ctx.fillStyle = farColor;
+            ctx.fillText(farText, sphereX + boxW/2, sphereY - boxH/2 - 10);
+
+            ctx.fillStyle = "#555";
+            ctx.font = "16px Microsoft JhengHei";
+            let totalQ = totalPos - totalNeg;
+            let totalText = `正電荷: +${totalPos}e   負電荷: -${totalNeg}e   導體淨電量: ${totalQ} (守恆)`;
+            ctx.fillText(totalText, sphereX, sphereY + boxH/2 + 30);
+
+            ctx.beginPath(); ctx.arc(sphereX, sphereY, sphereR, 0, Math.PI*2);
+            let grad = ctx.createRadialGradient(sphereX-30, sphereY-30, 10, sphereX, sphereY, sphereR);
+            grad.addColorStop(0, '#f1c40f'); grad.addColorStop(1, '#f39c12');
+            ctx.fillStyle = grad; ctx.fill(); ctx.stroke();
+            
+            particles.forEach(p => {
+                let tx = sphereX + p.x; 
+                let ty = sphereY + p.y;
+                
+                if(!p.fixed) {
+                    let dir = (rod.type==='glass') ? -1 : 1; 
+                    let shift = effect * 50 * dir; 
+                    tx += shift;
+                    let dx = tx - sphereX; let dy = ty - sphereY;
+                    let d = Math.sqrt(dx*dx + dy*dy);
+                    if(d > sphereR-10) {
+                        tx = sphereX + (dx/d)*(sphereR-10);
+                        ty = sphereY + (dy/d)*(sphereR-10);
+                    }
+                }
+
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI*2);
+                ctx.fillStyle = p.q>0 ? '#e74c3c' : '#3498db';
+                ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font='10px Arial'; ctx.textAlign='center';
+                ctx.fillText(p.q>0?'+':'-', tx, ty+3);
+            });
+
+            ctx.save();
+            ctx.fillStyle = rod.type==='glass' ? 'rgba(200,230,255,0.9)' : '#7f8c8d';
+            roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 15, true, true);
+            let chargeSym = rod.type==='glass' ? '+' : '-';
+            ctx.fillStyle = '#333'; ctx.font='20px Arial';
+            ctx.fillText(chargeSym.repeat(6), rod.x+70, rod.y+25);
+            ctx.restore();
+
+            requestAnimationFrame(draw);
+        }
+
+        setupInteractions(canvas, 
+            (e, pos) => {
+                if(currentExpId!==2) return;
+                if(pos.x>rod.x && pos.x<rod.x+rod.w && pos.y>rod.y && pos.y<rod.y+rod.h) {
+                    dragging = rod; dragOff = {x:pos.x-rod.x, y:pos.y-rod.y};
+                }
+            },
+            (e, pos) => {
+                if(!dragging || currentExpId!==2) return;
+                dragging.x = pos.x - dragOff.x;
+                dragging.y = pos.y - dragOff.y;
+            },
+            () => dragging = null
+        );
+        
+        document.getElementById('btn-glass-e2').onclick = () => { rod.type='glass'; document.getElementById('btn-glass-e2').classList.add('active'); document.getElementById('btn-plastic-e2').classList.remove('active'); };
+        document.getElementById('btn-plastic-e2').onclick = () => { rod.type='plastic'; document.getElementById('btn-plastic-e2').classList.add('active'); document.getElementById('btn-glass-e2').classList.remove('active'); };
+        document.getElementById('btn-reset-e2').onclick = () => { rod.x=50; };
+
+        requestAnimationFrame(draw);
+    })();
+
+    // ==========================================
+    // 實驗 3: 感應起電 (自由拖曳版)
+    // ==========================================
+    (function() {
+        const canvas = document.getElementById('canvas-e3');
+        const ctx = canvas.getContext('2d');
+        
+        // 物件定義
+        let rod = {x: 50, y: 200, w: 200, h: 40, type: 'glass'};
+        let sphere = {x: 600, y: 220, r: 90};
+        let person = {x: 800, y: 300, w: 60, h: 100, isTouching: false}; // Person/Hand position
+        
+        let particles = [];
+        let draggingObj = null;
+        let dragOff = {x:0, y:0};
+        
+        // 物理參數
+        let groundingTimer = 0;
+
+        function init() {
+            rod.x = 50;
+            person.x = 800; // Reset positions
+            person.y = 300;
+            particles = [];
+            // 初始化粒子: 12 對
+            for(let i=0; i<12; i++) {
+                // 質子 (固定) - 均勻排列方便看
+                let angle = (Math.PI * 2 * i) / 12;
+                let r = sphere.r * 0.6;
+                particles.push({
+                    x: sphere.x + Math.cos(angle)*r, 
+                    y: sphere.y + Math.sin(angle)*r, 
+                    q: 1, fixed: true
+                });
+                // 電子 (自由) - 初始位置與質子相同
+                particles.push({
+                    x: sphere.x + Math.cos(angle)*r, 
+                    y: sphere.y + Math.sin(angle)*r, 
+                    q: -1, fixed: false
+                }); 
+            }
+            updateStatusText();
+        }
+        init();
+
+        function updateStatusText() {
+            // Update handled in draw loop for real-time feedback
+        }
+
+        function draw() {
+            if(currentExpId!==3) { requestAnimationFrame(draw); return; }
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+
+            // 1. 檢測狀態
+            let rodTipX = rod.x + rod.w;
+            let distToSphere = (sphere.x - sphere.r) - rodTipX;
+            let isNear = distToSphere < 200 && distToSphere > 0;
+            
+            // 限制棒子不能碰到球 (保持最小距離 10px)
+            if(rod.x + rod.w > sphere.x - sphere.r - 10) {
+                rod.x = sphere.x - sphere.r - 10 - rod.w;
+            }
+
+            // 檢測人是否接地
+            // 假設人的手在 person.x 左側 (person drawing centered roughly)
+            // person.x is center of head in drawPerson, let's allow some range
+            let handX = person.x - 50; // Hand reaches out to left
+            let sphereRight = sphere.x + sphere.r;
+            
+            // Simple proximity check for "touching" the right side of sphere
+            // Person body is at person.x, sphere right edge is sphereRight
+            // If person is close enough (e.g. x < sphereRight + 100)
+            person.isTouching = (person.x - sphereRight < 100 && person.x > sphereRight);
+
+            // 2. 物理計算
+            // 感應強度 (0 ~ 1)
+            let induction = 0;
+            if(isNear) {
+                induction = 1 - (distToSphere / 200);
+            }
+            
+            // 棒子電荷符號
+            let rodSign = (rod.type === 'glass') ? 1 : -1;
+
+            if(person.isTouching) {
+                groundingTimer++;
+                if(groundingTimer > 5) { // 降低流動速度
+                    groundingTimer = 0;
+                    let currentElectrons = particles.filter(p => !p.fixed).length;
+                    let targetElectrons = 12; 
+                    
+                    // Induction effect on grounding equilibrium
+                    if(rodSign === 1) { // 棒正 -> 吸電子 -> 球帶負 (需更多電子)
+                        targetElectrons = 12 + Math.floor(induction * 8); 
+                    } else { // 棒負 -> 斥電子 -> 球帶正 (需更少電子)
+                        targetElectrons = 12 - Math.floor(induction * 8);
+                    }
+                    
+                    if(currentElectrons < targetElectrons) {
+                        // 從地流入電子
+                        particles.push({
+                            x: sphereRight, 
+                            y: sphere.y + (Math.random()-0.5)*20, 
+                            q: -1, fixed: false
+                        });
+                    } else if(currentElectrons > targetElectrons) {
+                        // 流出電子 (移除最右邊的電子)
+                        let mobiles = particles.filter(p => !p.fixed);
+                        mobiles.sort((a,b) => b.x - a.x);
+                        if(mobiles.length > 0) {
+                            let p = mobiles[0];
+                            let idx = particles.indexOf(p);
+                            if(idx > -1) particles.splice(idx, 1);
+                        }
+                    }
+                }
+            }
+
+            // 3. 粒子移動
+            particles.forEach(p => {
+                if(p.fixed) return;
+                
+                // 受棒子影響
+                let forceX = -rodSign * induction * 60;
+                
+                // 簡單模擬：目標位置 = 原始位置 + 感應偏移
+                // 為了不讓所有電子擠在一起，保留其相對分佈特徵
+                // 這裡我們讓它在球內移動
+                
+                p.x += (forceX * 0.05); 
+                
+                // 隨機熱運動 (擴散)
+                p.x += (Math.random()-0.5)*2;
+                p.y += (Math.random()-0.5)*2;
+
+                // 邊界限制 (球體)
+                let dx = p.x - sphere.x;
+                let dy = p.y - sphere.y;
+                let d2 = Math.sqrt(dx*dx + dy*dy);
+                if(d2 > sphere.r - 8) {
+                    let scale = (sphere.r - 8) / d2;
+                    p.x = sphere.x + dx * scale;
+                    p.y = sphere.y + dy * scale;
+                }
+            });
+
+            // 4. 繪圖
+            
+            // 棒子
+            ctx.save();
+            let gradRod = ctx.createLinearGradient(rod.x, 0, rod.x+rod.w, 0);
+            if(rod.type === 'glass') { 
+                gradRod.addColorStop(0, '#dbeafe'); gradRod.addColorStop(1, '#93c5fd'); 
+                ctx.fillStyle = gradRod; ctx.strokeStyle = '#3b82f6';
+            } else { 
+                gradRod.addColorStop(0, '#7f8c8d'); gradRod.addColorStop(1, '#34495e'); 
+                ctx.fillStyle = gradRod; ctx.strokeStyle = '#2c3e50';
+            }
+            roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 10, true, true);
+            ctx.fillStyle = 'white'; ctx.font='20px Arial'; ctx.textAlign='center';
+            ctx.fillText(rod.type==='glass'?"++++++":"------", rod.x+rod.w/2, rod.y+27);
+            ctx.restore();
+
+            // 球
+            ctx.beginPath(); ctx.arc(sphere.x, sphere.y, sphere.r, 0, Math.PI*2);
+            let gradSphere = ctx.createRadialGradient(sphere.x-20, sphere.y-20, 10, sphere.x, sphere.y, sphere.r);
+            gradSphere.addColorStop(0, '#f1c40f'); gradSphere.addColorStop(1, '#d35400');
+            ctx.fillStyle = gradSphere; ctx.fill(); ctx.stroke();
+
+            // 粒子
+            particles.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+                if(p.fixed) {
+                    ctx.fillStyle='#c0392b'; ctx.fill();
+                    ctx.fillStyle='white'; ctx.font='10px Arial'; ctx.fillText('+', p.x, p.y+3);
+                } else {
+                    ctx.fillStyle='#2980b9'; ctx.fill();
+                    ctx.fillStyle='white'; ctx.font='10px Arial'; ctx.fillText('-', p.x, p.y+3);
+                }
+            });
+
+            // 人 (拖曳物件)
+            drawPerson(ctx, person.x, person.y, person.isTouching);
+
+            // 淨電荷計算與顯示
+            let pCount = particles.filter(p=>p.fixed).length;
+            let eCount = particles.filter(p=>!p.fixed).length;
+            let net = pCount - eCount;
+            let statusText = "狀態：";
+            
+            if(person.isTouching) statusText += "接地中";
+            else if(isNear) statusText += "感應中";
+            else statusText += "閒置";
+
+            document.getElementById('net-charge-display-e3').innerText = (net > 0 ? "+" + net : net);
+            document.getElementById('guide-status-e3').innerText = statusText; 
+
+            requestAnimationFrame(draw);
+        }
+
+        function drawPerson(ctx, x, y, isTouching) {
+            ctx.save();
+            ctx.translate(x, y); // x,y is center of head approx
+            
+            // 身體顏色
+            ctx.strokeStyle = '#34495e';
+            ctx.lineWidth = 4;
+            
+            // 頭
+            ctx.beginPath(); ctx.arc(0, -50, 20, 0, Math.PI*2); 
+            ctx.fillStyle = '#f1c40f'; ctx.fill(); ctx.stroke();
+            // 笑臉
+            ctx.beginPath(); ctx.arc(-7, -55, 2, 0, Math.PI*2); ctx.fillStyle='black'; ctx.fill();
+            ctx.beginPath(); ctx.arc(7, -55, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, -45, 10, 0, Math.PI, false); ctx.stroke();
+
+            // 軀幹
+            ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, 40); ctx.stroke();
+            
+            // 腳
+            ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(-20, 80); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(20, 80); ctx.stroke();
+
+            // 手 (伸手去摸)
+            ctx.beginPath(); ctx.moveTo(0, -10); 
+            if(isTouching) {
+                ctx.lineTo(-50, -20); // 伸向左邊 (球的方向)
+                // 接地符號
+                ctx.save();
+                ctx.translate(-50, -20); // Move to hand tip
+                ctx.strokeStyle = '#27ae60';
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 30); // Wire down
+                // Ground lines
+                ctx.moveTo(-15, 30); ctx.lineTo(15, 30);
+                ctx.moveTo(-10, 35); ctx.lineTo(10, 35);
+                ctx.moveTo(-5, 40); ctx.lineTo(5, 40);
+                ctx.stroke();
+                ctx.fillStyle = '#27ae60'; ctx.font='14px Arial'; ctx.textAlign='center';
+                ctx.fillText("接地", 0, 55);
+                ctx.restore();
+            } else {
+                ctx.lineTo(-20, 20); // 下垂
+                ctx.fillStyle = '#e67e22'; ctx.font='14px Arial'; ctx.textAlign='center';
+                ctx.fillText("拖曳我", 0, -80);
+            }
+            ctx.strokeStyle = '#34495e'; // reset
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // 互動事件 Setup (同其他關卡)
+        setupInteractions(canvas, 
+            (e, pos) => {
+                if(currentExpId!==3) return;
+                // Check Rod
+                if(pos.x>rod.x && pos.x<rod.x+rod.w && pos.y>rod.y && pos.y<rod.y+rod.h) {
+                    draggingObj = rod; dragOff = {x:pos.x-rod.x, y:pos.y-rod.y};
+                }
+                // Check Person (Center is x,y. Head radius 20, body height ~100)
+                else if(Math.abs(pos.x - person.x) < 40 && Math.abs(pos.y - person.y) < 100) {
+                    draggingObj = person; dragOff = {x:pos.x-person.x, y:pos.y-person.y};
+                }
+            },
+            (e, pos) => {
+                if(!draggingObj || currentExpId!==3) return;
+                draggingObj.x = pos.x - dragOff.x;
+                draggingObj.y = pos.y - dragOff.y;
+            },
+            () => draggingObj = null
+        );
+        
+        // Buttons
+        document.getElementById('btn-glass-e3').onclick = () => { rod.type='glass'; init(); document.getElementById('btn-glass-e3').classList.add('active'); document.getElementById('btn-plastic-e3').classList.remove('active'); };
+        document.getElementById('btn-plastic-e3').onclick = () => { rod.type='plastic'; init(); document.getElementById('btn-plastic-e3').classList.add('active'); document.getElementById('btn-glass-e3').classList.remove('active'); };
+        document.getElementById('btn-reset-e3').onclick = init;
+
+        requestAnimationFrame(draw);
+    })();
+
+    // ==========================================
+    // 實驗 4: 接觸起電
+    // ==========================================
+    (function() {
+        const canvas = document.getElementById('canvas-e4');
+        const ctx = canvas.getContext('2d');
+        let rod = {x: 50, y: 150, w: 200, h: 40, type: 'plastic'};
+        let particles = [];
+        let dragging = null;
+        let dragOff = {x:0, y:0};
+
+        function init() {
+            rod.x = 50;
+            particles = [];
+            let qType = (rod.type==='plastic') ? -1 : 1;
+            for(let i=0; i<10; i++) {
+                particles.push({x: rod.x+20+i*18, y: rod.y+20, q:qType, owner:'rod'});
+            }
+        }
+        init();
+
+        function draw() {
+            if(currentExpId!==4) { requestAnimationFrame(draw); return; }
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            let sphereX = 550, sphereY = 170, sphereR = 90;
+
+            let rodTip = rod.x + rod.w;
+            if(rodTip > sphereX - sphereR && rod.x < sphereX + sphereR && 
+               rod.y + rod.h > sphereY - sphereR && rod.y < sphereY + sphereR) {
+                   let rodPs = particles.filter(p=>p.owner==='rod');
+                   let transferCount = 0;
+                   rodPs.forEach(p => {
+                       if(p.owner==='rod' && Math.random()>0.95 && transferCount < 1) {
+                           p.owner = 'sphere';
+                           transferCount++;
+                       }
+                   });
+            }
+
+            ctx.beginPath(); ctx.arc(sphereX, sphereY, sphereR, 0, Math.PI*2);
+            ctx.fillStyle = '#f39c12'; ctx.fill(); ctx.stroke();
+            
+            particles.forEach(p => {
+                if(p.owner === 'rod') {
+                    let offset = (particles.indexOf(p) % 10) * 18;
+                    p.x = rod.x + 20 + offset; 
+                    p.y = rod.y + 20;
+                } else {
+                    let spherePs = particles.filter(pt=>pt.owner==='sphere');
+                    let idx = spherePs.indexOf(p);
+                    let ang = (Math.PI*2 * idx) / spherePs.length;
+                    p.x = sphereX + Math.cos(ang)*(sphereR-10);
+                    p.y = sphereY + Math.sin(ang)*(sphereR-10);
+                }
+                
+                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+                ctx.fillStyle = p.q>0 ? '#e74c3c' : '#3498db';
+                ctx.fill();
+                ctx.fillStyle = 'white'; ctx.fillText(p.q>0?'+':'-', p.x, p.y+3);
+            });
+
+            ctx.fillStyle = rod.type==='glass' ? '#85c1e9' : '#7f8c8d';
+            roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 10, true, true);
+
+            requestAnimationFrame(draw);
+        }
+
+        setupInteractions(canvas, 
+            (e, pos) => {
+                if(currentExpId!==4) return;
+                if(pos.x>rod.x && pos.x<rod.x+rod.w && pos.y>rod.y && pos.y<rod.y+rod.h) {
+                    dragging = rod; dragOff = {x:pos.x-rod.x, y:pos.y-rod.y};
+                }
+            },
+            (e, pos) => {
+                if(!dragging || currentExpId!==4) return;
+                dragging.x = pos.x - dragOff.x;
+                dragging.y = pos.y - dragOff.y;
+            },
+            () => dragging = null
+        );
+
+        document.getElementById('btn-plastic-e4').onclick = () => { rod.type='plastic'; init(); document.getElementById('btn-plastic-e4').classList.add('active'); document.getElementById('btn-glass-e4').classList.remove('active'); };
+        document.getElementById('btn-glass-e4').onclick = () => { rod.type='glass'; init(); document.getElementById('btn-glass-e4').classList.add('active'); document.getElementById('btn-plastic-e4').classList.remove('active'); };
+        document.getElementById('btn-reset-e4').onclick = init;
+
+        requestAnimationFrame(draw);
+    })();
+
+    // ==========================================
+    // 實驗 5: 金箔驗電器
+    // ==========================================
+    (function() {
+        const canvas = document.getElementById('canvas-e5');
+        const ctx = canvas.getContext('2d');
+        let rod = {x: 50, y: 150, w: 200, h: 40, type: 'glass', charge: 1}; 
+        let dragging = null;
+        let dragOff = {x:0, y:0};
+        let isGrounded = false;
+        let initialChargeState = 0; 
+
+        let eParticles = []; 
+
+        function initEParticles() {
+            eParticles = [];
+            const headX = 400, headY = 180, headR = 40;
+            const stemX = 395, stemY = 180;
+            
+            for(let i=0; i<6; i++) {
+                let ang = Math.random() * Math.PI * 2;
+                let r = Math.random() * (headR - 5);
+                eParticles.push({
+                    x: headX + Math.cos(ang)*r, 
+                    y: headY + Math.sin(ang)*r,
+                    q: 1, fixed: true, region: 'head'
+                });
+            }
+            for(let i=0; i<8; i++) {
+                let py = stemY + 20 + i*12; 
+                eParticles.push({
+                    x: stemX + 5 + (Math.random()-0.5)*4,
+                    y: py,
+                    q: 1, fixed: true, region: 'stem'
+                });
+            }
+
+            let electronCount = 14; 
+            if(initialChargeState === 1) electronCount = 8; 
+            if(initialChargeState === -1) electronCount = 20; 
+
+            for(let i=0; i<electronCount; i++) {
+                let y = 150 + Math.random() * 150;
+                let x = 400 + (Math.random()-0.5)*20;
+                if(y < 180 + headR) { 
+                     let ang = Math.random() * Math.PI * 2;
+                     let r = Math.random() * (headR - 5);
+                     x = headX + Math.cos(ang)*r;
+                     y = headY + Math.sin(ang)*r;
+                } else { 
+                     x = stemX + 5 + (Math.random()-0.5)*6;
+                }
+                
+                eParticles.push({
+                    x: x, y: y, q: -1, fixed: false, 
+                    vx: 0, vy: 0
+                });
+            }
+        }
+        initEParticles();
+
+        function draw() {
+            if(currentExpId !== 5) { requestAnimationFrame(draw); return; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const headX = 400, headY = 180;
+            const rodCX = rod.x + rod.w/2;
+            const rodCY = rod.y + rod.h/2;
+            const dist = Math.sqrt((rodCX-headX)**2 + (rodCY-headY)**2);
+            let inductionForceY = 0;
+
+            if(dist < 400) { 
+                let strength = (400 - dist) / 400; 
+                let forceDir = (rod.charge > 0) ? -1 : 1; 
+                inductionForceY = strength * forceDir * 8.0; 
+            }
+
+            if(dist < 80) {
+                if(Math.random() > 0.85) {
+                    if(rod.charge > 0) { 
+                        let mobiles = eParticles.filter(p => !p.fixed && p.q === -1);
+                        if(mobiles.length > 4) { 
+                            let idx = Math.floor(Math.random()*mobiles.length);
+                            let realIdx = eParticles.indexOf(mobiles[idx]);
+                            if(realIdx > -1) eParticles.splice(realIdx, 1);
+                        }
+                    } else { 
+                        eParticles.push({
+                            x: headX + (Math.random()-0.5)*10, 
+                            y: headY + (Math.random()-0.5)*10, 
+                            q: -1, fixed: false, vx: 0, vy: 0
+                        });
+                    }
+                }
+            }
+
+            if(isGrounded) {
+                let bottomElectrons = eParticles.filter(p => !p.fixed && p.y > 250).length;
+                let bottomProtons = eParticles.filter(p => p.fixed && p.y > 250).length;
+                
+                if(Math.random() > 0.7) {
+                    if(inductionForceY < 0) { 
+                         if(bottomElectrons < bottomProtons + 4) { 
+                             eParticles.push({x: 400, y: 320, q:-1, fixed:false, vx:0, vy:-5});
+                         }
+                    } else if (inductionForceY > 0) {
+                         let downEs = eParticles.filter(p => !p.fixed && p.y > 250);
+                         if(downEs.length > bottomProtons) {
+                             let p = downEs[0];
+                             let idx = eParticles.indexOf(p);
+                             if(idx > -1) eParticles.splice(idx, 1);
+                         }
+                    } else {
+                        let totalE = eParticles.filter(p=>!p.fixed).length;
+                        let totalP = eParticles.filter(p=>p.fixed).length;
+                        if(totalE < totalP) eParticles.push({x:400,y:300,q:-1,fixed:false});
+                        if(totalE > totalP) {
+                            let idx = eParticles.findIndex(p=>!p.fixed);
+                            if(idx>-1) eParticles.splice(idx,1);
+                        }
+                    }
+                }
+            }
+
+            eParticles.forEach(p => {
+                if(p.fixed) return;
+                
+                p.vy = inductionForceY;
+                
+                p.vx = (Math.random()-0.5) * 3;
+                p.vy += (Math.random()-0.5) * 3;
+
+                let nextX = p.x + p.vx;
+                let nextY = p.y + p.vy;
+
+                let inHead = Math.sqrt((nextX-400)**2 + (nextY-180)**2) < 38;
+                let inStem = (nextX > 390 && nextX < 410 && nextY >= 180 && nextY < 320);
+                
+                if(inHead || inStem) {
+                    p.x = nextX;
+                    p.y = nextY;
+                } else {
+                    if(nextY < 145) p.y = 150;
+                    if(nextY > 315) p.y = 310;
+                    if(nextX < 365) p.x = 370;
+                    if(nextX > 435) p.x = 430;
+                }
+            });
+
+            let bE = eParticles.filter(p => !p.fixed && p.y > 240).length;
+            let bP = eParticles.filter(p => p.fixed && p.y > 240).length;
+            let netBottom = Math.abs(bE - bP);
+            let targetAngle = netBottom * 15; 
+            if(targetAngle > 90) targetAngle = 90;
+            
+            let tE = eParticles.filter(p => !p.fixed && p.y <= 240).length;
+            let tP = eParticles.filter(p => p.fixed && p.y <= 240).length;
+            document.getElementById('top-charge-e5').innerText = (tP - tE);
+            document.getElementById('bottom-charge-e5').innerText = (bP - bE);
+
+            let currentAngleDisp = parseFloat(document.getElementById('leaf-angle-e5').getAttribute('data-val') || 0);
+            let newAngle = currentAngleDisp + (targetAngle - currentAngleDisp) * 0.15; 
+            document.getElementById('leaf-angle-e5').innerText = Math.round(newAngle) + "度";
+            document.getElementById('leaf-angle-e5').setAttribute('data-val', newAngle);
+
+            ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 2;
+            ctx.strokeRect(350, 200, 100, 150);
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillRect(350, 200, 100, 150);
+            
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(395, 180, 10, 140); 
+            
+            ctx.beginPath(); ctx.arc(400, 180, 40, 0, Math.PI*2);
+            ctx.fillStyle = '#bdc3c7'; ctx.fill(); ctx.stroke();
+
+            let lx = 400; let ly = 320;
+            let angRad = newAngle * Math.PI / 180;
+            ctx.fillStyle = '#f1c40f'; 
+            ctx.save(); ctx.translate(lx, ly); ctx.rotate(-angRad); ctx.fillRect(-2, 0, 4, 60); ctx.restore();
+            ctx.save(); ctx.translate(lx, ly); ctx.rotate(angRad); ctx.fillRect(-2, 0, 4, 60); ctx.restore();
+
+            eParticles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 6, 0, Math.PI*2); 
+                if(p.q > 0) {
+                    ctx.fillStyle = '#e74c3c'; 
+                } else {
+                    ctx.fillStyle = '#3498db'; 
+                }
+                ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font='10px Arial'; ctx.textAlign='center'; 
+                ctx.fillText(p.q>0?'+':'-', p.x, p.y+4);
+            });
+
+            ctx.save();
+            let grad = ctx.createLinearGradient(rod.x, 0, rod.x+rod.w, 0);
+            if(rod.type === 'glass') { 
+                grad.addColorStop(0, '#dbeafe'); grad.addColorStop(1, '#93c5fd'); 
+                ctx.fillStyle = grad; ctx.strokeStyle = '#3b82f6';
+            } else { 
+                grad.addColorStop(0, '#555'); grad.addColorStop(1, '#333'); 
+                ctx.fillStyle = grad; ctx.strokeStyle = '#222';
+            }
+            roundRect(ctx, rod.x, rod.y, rod.w, rod.h, 15, true, true);
+            ctx.fillStyle = 'white'; ctx.font='20px Arial';
+            ctx.fillText(rod.charge>0?"++++++":"------", rod.x+70, rod.y+25);
+            ctx.restore();
+
+            if(isGrounded) {
+                ctx.fillStyle = '#e67e22';
+                ctx.beginPath(); ctx.arc(440, 180, 10, 0, Math.PI*2); ctx.fill();
+                ctx.fillRect(440, 170, 60, 20); 
+                ctx.fillStyle = 'white'; ctx.font='14px Arial'; ctx.fillText("接地", 460, 185);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        setupInteractions(canvas, 
+            (e, pos) => {
+                if(currentExpId!==5) return;
+                if(pos.x>rod.x && pos.x<rod.x+rod.w && pos.y>rod.y && pos.y<rod.y+rod.h) {
+                    dragging = rod; dragOff = {x:pos.x-rod.x, y:pos.y-rod.y};
+                }
+            },
+            (e, pos) => {
+                if(!dragging || currentExpId!==5) return;
+                dragging.x = pos.x - dragOff.x;
+                dragging.y = pos.y - dragOff.y;
+            },
+            () => dragging = null
+        );
+
+        const btns = {
+            glass: document.getElementById('btn-glass-e5'),
+            plastic: document.getElementById('btn-plastic-e5'),
+            neu: document.getElementById('btn-init-neu-e5'),
+            pos: document.getElementById('btn-init-pos-e5'),
+            neg: document.getElementById('btn-init-neg-e5')
+        };
+
+        function updateBtnState(group, activeId) {
+            group.forEach(id => document.getElementById(id).classList.remove('active'));
+            document.getElementById(activeId).classList.add('active');
+        }
+
+        btns.glass.onclick = () => { rod.type='glass'; rod.charge=1; updateBtnState(['btn-glass-e5','btn-plastic-e5'], 'btn-glass-e5'); };
+        btns.plastic.onclick = () => { rod.type='plastic'; rod.charge=-1; updateBtnState(['btn-glass-e5','btn-plastic-e5'], 'btn-plastic-e5'); };
+        
+        btns.neu.onclick = () => { initialChargeState=0; initEParticles(); updateBtnState(['btn-init-neu-e5','btn-init-pos-e5','btn-init-neg-e5'], 'btn-init-neu-e5'); };
+        btns.pos.onclick = () => { initialChargeState=1; initEParticles(); updateBtnState(['btn-init-neu-e5','btn-init-pos-e5','btn-init-neg-e5'], 'btn-init-pos-e5'); };
+        btns.neg.onclick = () => { initialChargeState=-1; initEParticles(); updateBtnState(['btn-init-neu-e5','btn-init-pos-e5','btn-init-neg-e5'], 'btn-init-neg-e5'); };
+
+        const fBtn = document.getElementById('btn-finger-e5');
+        fBtn.addEventListener('mousedown', () => isGrounded=true);
+        fBtn.addEventListener('mouseup', () => isGrounded=false);
+        fBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isGrounded=true; });
+        fBtn.addEventListener('touchend', (e) => { e.preventDefault(); isGrounded=false; });
+
+        document.getElementById('btn-reset-e5').onclick = () => { 
+            rod.x=50; rod.y=150; 
+            initialChargeState=0; initEParticles();
+            updateBtnState(['btn-init-neu-e5','btn-init-pos-e5','btn-init-neg-e5'], 'btn-init-neu-e5');
+        };
+
+        requestAnimationFrame(draw);
+    })();
+
+</script>
+</body>
+</html>
